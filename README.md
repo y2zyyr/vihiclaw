@@ -2,7 +2,7 @@
 
 A local-first AI coding agent CLI tool / 本地優先的 AI 編程代理 CLI 工具
 
-Developed by Software Development students at Fujian University (Fuckin U) / 由福建大學 (Fuckin U) 軟件開發學科學生開發
+A local-first AI coding agent CLI tool / 本地優先的 AI 編程代理 CLI 工具
 
 ---
 

@@ -65,24 +65,56 @@ async function loadFileConfig() {
         throw new ConfigError(`Failed to load config from ${configPath}: ${error}`);
     }
 }
+/**
+ * Format validation error with helpful suggestions / 格式化驗證錯誤並提供有用建議
+ */
+function formatValidationError(error) {
+    const issues = error.errors || [];
+    const messages = [];
+    for (const issue of issues) {
+        const path = issue.path?.join('.') || 'config';
+        const message = issue.message || 'Invalid value / 無效值';
+        let suggestion = '';
+        // Add helpful suggestions for common errors / 為常見錯誤添加建議
+        if (path === 'provider') {
+            suggestion = 'Valid providers / 有效提供者: anthropic, openai, local';
+        }
+        else if (path === 'apiKey') {
+            suggestion = 'Set via CLAW_API_KEY environment variable or config file / 通過 CLAW_API_KEY 環境變量或配置文件設置';
+        }
+        else if (path === 'maxIterations') {
+            suggestion = 'Must be between 1 and 1000 / 必須在 1 到 1000 之間';
+        }
+        else if (path === 'temperature') {
+            suggestion = 'Must be between 0 and 2 / 必須在 0 到 2 之間';
+        }
+        else if (path === 'logLevel') {
+            suggestion = 'Valid levels / 有效級別: debug, info, warn, error';
+        }
+        messages.push(`  - ${path}: ${message}${suggestion ? `\n    ${suggestion}` : ''}`);
+    }
+    return messages.join('\n');
+}
 export async function loadConfig(overrides) {
-    // Load from multiple sources and merge
+    // Load from multiple sources and merge / 從多個來源加載並合併
     const fileConfig = await loadFileConfig();
     const envConfig = loadEnvConfig();
-    // Merge priority: defaults < file < env < overrides
+    // Merge priority: defaults < file < env < overrides / 合併優先級：默認 < 文件 < 環境 < 覆蓋
     const merged = {
         ...DEFAULT_CONFIG,
         ...fileConfig,
         ...envConfig,
         ...overrides,
     };
-    // Validate
+    // Validate / 驗證
     const result = configSchema.safeParse(merged);
     if (!result.success) {
-        const errors = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-        throw new ConfigError(`Invalid configuration: ${errors}`);
+        const errorMessage = formatValidationError(result.error);
+        throw new ConfigError(`Configuration validation failed / 配置驗證失敗:\n${errorMessage}\n\n` +
+            `Check your ~/.claw/config.json or environment variables / 檢查 ~/.claw/config.json 或環境變量\n` +
+            `Run 'vihiclaw --help' for configuration options / 運行 'vihiclaw --help' 查看配置選項`);
     }
-    // Expand paths
+    // Expand paths / 展開路徑
     const config = result.data;
     config.sessionDir = expandPath(config.sessionDir);
     config.logDir = expandPath(config.logDir);
@@ -96,7 +128,8 @@ export async function saveConfig(config) {
         await fs.writeFile(configPath, JSON.stringify(config, null, 2));
     }
     catch (error) {
-        throw new ConfigError(`Failed to save config: ${error}`);
+        throw new ConfigError(`Failed to save config / 保存配置失敗: ${error}\n\n` +
+            `Make sure you have write permission to ${configDir} / 確保您有 ${configDir} 的寫入權限`);
     }
 }
 //# sourceMappingURL=loader.js.map

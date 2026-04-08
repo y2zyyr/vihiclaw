@@ -5,7 +5,7 @@
 
 ## Reviewer / 審查者
 VIHIclaw Development Team / VIHIclaw 開發團隊
-Fujian University (Fuckin U) / 福建大學 (Fuckin U)
+VIHIclaw Development Team / VIHIclaw 開發團隊
 
 ---
 

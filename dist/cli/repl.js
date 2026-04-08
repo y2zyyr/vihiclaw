@@ -17,8 +17,28 @@ export async function runREPL(overrides) {
     const toolRegistry = createDefaultRegistry();
     const sessionManager = new SessionManager(config.sessionDir);
     await sessionManager.initialize();
-    const session = await sessionManager.create();
-    logger.info(`Created session: ${session.id}`);
+    // Check for resume flag / 檢查恢復標誌
+    const resumeSessionId = process.argv.includes('--resume')
+        ? process.argv[process.argv.indexOf('--resume') + 1]
+        : null;
+    let session;
+    if (resumeSessionId) {
+        session = await sessionManager.load(resumeSessionId);
+        if (session) {
+            logger.info(`Resumed session: ${session.id}`);
+            console.log(chalk.yellow(`\nResumed session / 恢復會話: ${session.id}`));
+            console.log(chalk.gray(`Messages / 消息數: ${session.messages.length}`));
+        }
+        else {
+            console.log(chalk.red(`\nSession not found / 會話未找到: ${resumeSessionId}`));
+            console.log(chalk.gray('Creating new session / 創建新會話'));
+            session = await sessionManager.create();
+        }
+    }
+    else {
+        session = await sessionManager.create();
+        logger.info(`Created session: ${session.id}`);
+    }
     const provider = createProvider(config);
     const agent = new AgentLoop(provider, toolRegistry, sessionManager, session.id, logger, config, {
         onStateChange: (state) => {
@@ -74,7 +94,7 @@ export async function runREPL(overrides) {
         }
         // Special commands
         if (trimmed.startsWith('/')) {
-            await handleCommand(trimmed, agent, config);
+            await handleCommand(trimmed, agent, config, sessionManager, session.id);
             rl.prompt();
             return;
         }
@@ -116,46 +136,67 @@ function createProvider(config) {
             throw new ClawError(`Unknown provider: ${config.provider}`, 'UNKNOWN_PROVIDER', false);
     }
 }
-async function handleCommand(command, _agent, config) {
+async function handleCommand(command, _agent, config, sessionManager, currentSessionId) {
     const parts = command.slice(1).split(' ');
     const cmd = parts[0];
     switch (cmd) {
         case 'help':
-            console.log(chalk.cyan('\nAvailable commands:'));
-            console.log('  /help     - Show this help');
-            console.log('  /clear    - Clear the conversation');
-            console.log('  /tools    - List available tools');
-            console.log('  /config   - Show current configuration');
-            console.log('  /dryrun   - Toggle dry-run mode');
-            console.log('  /exit     - Exit the REPL');
+            console.log(chalk.cyan('\nAvailable commands / 可用命令:'));
+            console.log('  /help       - Show this help / 顯示幫助');
+            console.log('  /resume     - Resume previous session / 恢復上一個會話');
+            console.log('  /sessions   - List available sessions / 列出可用會話');
+            console.log('  /clear      - Clear the conversation / 清除對話');
+            console.log('  /tools      - List available tools / 列出可用工具');
+            console.log('  /config     - Show current configuration / 顯示當前配置');
+            console.log('  /dryrun     - Toggle dry-run mode / 切換模擬運行模式');
+            console.log('  /exit       - Exit the REPL / 退出 REPL');
             console.log();
+            break;
+        case 'sessions':
+            const sessions = await sessionManager.list();
+            console.log(chalk.cyan('\nAvailable sessions / 可用會話:'));
+            if (sessions.length === 0) {
+                console.log(chalk.gray('  No sessions found / 未找到會話'));
+            }
+            else {
+                for (const sid of sessions) {
+                    const marker = sid === currentSessionId ? ' (current / 當前)' : '';
+                    console.log(`  ${sid}${marker}`);
+                }
+            }
+            console.log();
+            break;
+        case 'resume':
+            console.log(chalk.yellow('\nTo resume a session, exit and restart with: / 要恢復會話，請退出並使用以下命令重啟：'));
+            console.log(chalk.cyan(`  vihiclaw --resume ${currentSessionId}\n`));
             break;
         case 'tools':
             const { createDefaultRegistry } = await import('../tools/index.js');
             const registry = createDefaultRegistry();
-            console.log(chalk.cyan('\nAvailable tools:'));
+            console.log(chalk.cyan('\nAvailable tools / 可用工具:'));
             for (const tool of registry.getAll()) {
                 console.log(`  ${chalk.bold(tool.name)} - ${tool.description}`);
             }
             console.log();
             break;
         case 'config':
-            console.log(chalk.cyan('\nCurrent configuration:'));
-            console.log(`  Provider: ${config.provider}`);
-            console.log(`  Model: ${config.model}`);
-            console.log(`  Dry run: ${config.dryRun}`);
-            console.log(`  Max iterations: ${config.maxIterations}`);
+            console.log(chalk.cyan('\nCurrent configuration / 當前配置:'));
+            console.log(`  Provider / 提供者: ${config.provider}`);
+            console.log(`  Model / 模型: ${config.model}`);
+            console.log(`  Dry run / 模擬運行: ${config.dryRun}`);
+            console.log(`  Max iterations / 最大迭代: ${config.maxIterations}`);
             console.log();
             break;
         case 'dryrun':
             config.dryRun = !config.dryRun;
-            console.log(chalk.cyan(`\nDry-run mode: ${config.dryRun ? 'ON' : 'OFF'}\n`));
+            console.log(chalk.cyan(`\nDry-run mode / 模擬運行模式: ${config.dryRun ? 'ON / 開' : 'OFF / 關'}\n`));
             break;
         case 'clear':
-            console.log(chalk.yellow('\nNote: Context clearing not implemented yet\n'));
+            console.log(chalk.yellow('\nNote: Context clearing not implemented yet / 注意：上下文清除暫未實現\n'));
             break;
         default:
-            console.log(chalk.red(`\nUnknown command: /${cmd}\n`));
+            console.log(chalk.red(`\nUnknown command / 未知命令: /${cmd}`));
+            console.log(chalk.gray('Type /help for available commands / 輸入 /help 查看可用命令\n'));
     }
 }
 //# sourceMappingURL=repl.js.map
