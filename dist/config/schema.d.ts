@@ -1,0 +1,57 @@
+import { z } from 'zod';
+import { ClawConfig } from '../types/index.js';
+export declare const configSchema: z.ZodObject<{
+    provider: z.ZodDefault<z.ZodEnum<["anthropic", "openai", "local"]>>;
+    model: z.ZodDefault<z.ZodString>;
+    apiKey: z.ZodOptional<z.ZodString>;
+    baseUrl: z.ZodOptional<z.ZodString>;
+    maxIterations: z.ZodDefault<z.ZodNumber>;
+    temperature: z.ZodDefault<z.ZodNumber>;
+    maxTokens: z.ZodOptional<z.ZodNumber>;
+    dryRun: z.ZodDefault<z.ZodBoolean>;
+    confirmDestructive: z.ZodDefault<z.ZodBoolean>;
+    allowedShellCommands: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    blockedPaths: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    sessionDir: z.ZodDefault<z.ZodString>;
+    logDir: z.ZodDefault<z.ZodString>;
+    logLevel: z.ZodDefault<z.ZodEnum<["debug", "info", "warn", "error"]>>;
+    streamResponse: z.ZodDefault<z.ZodBoolean>;
+    saveSession: z.ZodDefault<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    provider: "anthropic" | "openai" | "local";
+    model: string;
+    maxIterations: number;
+    temperature: number;
+    dryRun: boolean;
+    confirmDestructive: boolean;
+    allowedShellCommands: string[];
+    blockedPaths: string[];
+    sessionDir: string;
+    logDir: string;
+    logLevel: "error" | "debug" | "info" | "warn";
+    streamResponse: boolean;
+    saveSession: boolean;
+    apiKey?: string | undefined;
+    baseUrl?: string | undefined;
+    maxTokens?: number | undefined;
+}, {
+    provider?: "anthropic" | "openai" | "local" | undefined;
+    model?: string | undefined;
+    apiKey?: string | undefined;
+    baseUrl?: string | undefined;
+    maxIterations?: number | undefined;
+    temperature?: number | undefined;
+    maxTokens?: number | undefined;
+    dryRun?: boolean | undefined;
+    confirmDestructive?: boolean | undefined;
+    allowedShellCommands?: string[] | undefined;
+    blockedPaths?: string[] | undefined;
+    sessionDir?: string | undefined;
+    logDir?: string | undefined;
+    logLevel?: "error" | "debug" | "info" | "warn" | undefined;
+    streamResponse?: boolean | undefined;
+    saveSession?: boolean | undefined;
+}>;
+export type ConfigSchema = z.infer<typeof configSchema>;
+export declare const DEFAULT_CONFIG: Partial<ClawConfig>;
+//# sourceMappingURL=schema.d.ts.map
