@@ -1,48 +1,60 @@
-# 🐾 Claw
+# 🐾 VIHIclaw
 
-一个本地优先的 AI coding agent CLI 工具。
+A local-first AI coding agent CLI tool / 本地優先的 AI 編程代理 CLI 工具
 
-## 特性
+Developed by Software Development students at Fujian University (Fuckin U) / 由福建大學 (Fuckin U) 軟件開發學科學生開發
 
-- 🤖 **Agent Loop**: 状态机驱动的智能体循环，支持工具调用
-- 🛠️ **内置工具**: 文件读取、写入、编辑、目录列表、文本搜索、Shell 执行
-- 💬 **REPL 交互**: 交互式对话界面
-- 💾 **会话管理**: 自动保存对话历史到本地 JSONL 文件
-- 🔌 **多 Provider 支持**: Anthropic Claude、OpenAI GPT、本地模型
-- 🛡️ **安全设计**: 命令白名单、dry-run 模式、路径保护
-- 📝 **结构化日志**: 控制台 + 文件双重日志
+---
 
-## 安装
+## Features / 特性
+
+- 🤖 **Agent Loop**: State machine driven agent loop with tool calling / 狀態機驅動的代理循環，支持工具調用
+- 🛠️ **Built-in Tools**: File read, write, edit, directory list, text search, shell execution / 內置工具：文件讀取、寫入、編輯、目錄列表、文本搜索、Shell 執行
+- 💬 **Interactive REPL**: Terminal-based chat interface / 基於終端的交互式對話界面
+- 💾 **Session Management**: Automatic conversation persistence to local JSONL / 會話管理：自動持久化對話到本地 JSONL
+- 🔌 **Multi-Provider**: Anthropic Claude, OpenAI GPT, Local models / 多提供者支持：Anthropic Claude、OpenAI GPT、本地模型
+- 🛡️ **Safety First**: Command whitelist, dry-run mode, path protection / 安全第一：命令白名單、模擬運行模式、路徑保護
+- 📝 **Structured Logging**: Console + file dual logging / 結構化日誌：控制台 + 文件雙重日誌
+- ⚡ **Startup Profiling**: Optional performance analysis / 啟動性能分析：可選的性能分析功能
+
+---
+
+## Installation / 安裝
 
 ```bash
-# 克隆仓库
-cd claw
+# Clone repository / 克隆倉庫
+cd vihiclaw
 
-# 安装依赖
+# Install dependencies / 安裝依賴
 npm install
 
-# 编译
+# Build / 編譯
 npm run build
 
-# 链接到全局（可选）
+# Link globally (optional) / 全局鏈接（可選）
 npm link
 ```
 
-## 配置
+---
 
-创建 `.env` 文件或设置环境变量：
+## Configuration / 配置
+
+Create `.env` file or set environment variables / 創建 `.env` 文件或設置環境變量：
 
 ```bash
-# LLM Provider 配置
+# LLM Provider Configuration / LLM 提供者配置
 CLAW_PROVIDER=anthropic
 CLAW_MODEL=claude-sonnet-4-6
 CLAW_API_KEY=your_api_key_here
 
-# 可选：自定义 API 地址（用于本地模型）
+# Optional: Custom API endpoint for local models / 可選：本地模型自定義 API 地址
 # CLAW_BASE_URL=http://localhost:11434/v1
+
+# Performance profiling / 性能分析
+# CLAW_PROFILE_STARTUP=1
 ```
 
-或者创建配置文件 `~/.claw/config.json`：
+Or create config file at `~/.claw/config.json` / 或在 `~/.claw/config.json` 創建配置文件：
 
 ```json
 {
@@ -52,117 +64,86 @@ CLAW_API_KEY=your_api_key_here
 }
 ```
 
-## 使用方法
+---
 
-### 启动 REPL
+## Usage / 使用方法
+
+### Start REPL / 啟動交互式對話
 
 ```bash
-# 交互式对话
-claw
+# Interactive chat / 交互式對話
+vihiclaw
 
-# 或明确指定
-claw chat
+# Or explicitly / 或明確指定
+vihiclaw chat
 ```
 
-### 单次提问
+### Single Question / 單次提問
 
 ```bash
-claw ask "创建一个简单的 Express 服务器"
+vihiclaw ask "Create a simple Express server / 創建一個簡單的 Express 服務器"
 ```
 
-### 命令行选项
+### CLI Options / 命令行選項
 
 ```bash
-claw --help
+vihiclaw --help
 
 Options:
-  -V, --version                    output the version number
-  -p, --provider <provider>        LLM provider (anthropic, openai, local)
-  -m, --model <model>              Model name
-  -k, --api-key <key>              API key
-  --dry-run                        Dry run mode (show actions without executing)
-  --session-dir <dir>              Session directory
-  --log-dir <dir>                  Log directory
-  --log-level <level>              Log level (debug, info, warn, error)
-  --no-stream                      Disable streaming responses
-  -h, --help                       display help for command
-
-Commands:
-  chat                             Start interactive chat (REPL)
-  ask <prompt>                     Ask a single question
-  session                          Session management
-  help [command]                   display help for command
+  -V, --version                    Show version / 顯示版本
+  -p, --provider <provider>        LLM provider / LLM 提供者
+  -m, --model <model>              Model name / 模型名稱
+  -k, --api-key <key>              API key / API 密鑰
+  --dry-run                        Dry run mode / 模擬運行模式
+  --session-dir <dir>              Session directory / 會話目錄
+  --log-dir <dir>                  Log directory / 日誌目錄
+  --log-level <level>              Log level / 日誌級別
+  --no-stream                      Disable streaming / 禁用流式響應
+  -h, --help                       Display help / 顯示幫助
 ```
 
-### REPL 命令
+### REPL Commands / REPL 命令
 
-在 REPL 中可以使用以下命令：
+- `/help` - Show help / 顯示幫助
+- `/tools` - List available tools / 列出可用工具
+- `/config` - Show current configuration / 顯示當前配置
+- `/dryrun` - Toggle dry-run mode / 切換模擬運行模式
+- `/clear` - Clear conversation context / 清除對話上下文
+- `exit` or `quit` - Exit REPL / 退出 REPL
 
-- `/help` - 显示帮助
-- `/tools` - 列出可用工具
-- `/config` - 显示当前配置
-- `/dryrun` - 切换 dry-run 模式
-- `/clear` - 清除对话上下文
-- `exit` 或 `quit` - 退出
+---
 
-## 可用工具
+## Available Tools / 可用工具
 
-| 工具名 | 功能 | 安全级别 |
-|--------|------|----------|
-| `read_file` | 读取文件内容 | safe |
-| `write_file` | 写入/覆盖文件 | confirm |
-| `edit_file` | 文本编辑（diff 风格） | confirm |
-| `list_dir` | 列出目录内容 | safe |
-| `search_text` | 文本搜索（支持正则） | safe |
-| `run_shell` | 执行 shell 命令 | confirm |
+| Tool / 工具 | Function / 功能 | Safety / 安全級別 |
+|-------------|-----------------|-------------------|
+| `read_file` | Read file content / 讀取文件內容 | safe |
+| `write_file` | Write/overwrite file / 寫入/覆蓋文件 | confirm |
+| `edit_file` | Text edit (diff-style) / 文本編輯（diff 風格） | confirm |
+| `list_dir` | List directory contents / 列出目錄內容 | safe |
+| `search_text` | Text search (regex support) / 文本搜索（支持正則） | safe |
+| `run_shell` | Execute shell command / 執行 shell 命令 | confirm |
 
-## 示例任务
+---
 
-### 1. 读取文件
-
-```
-> 读取 README.md 文件的内容
-```
-
-### 2. 创建文件
-
-```
-> 创建一个 hello.js 文件，输出 "Hello World"
-```
-
-### 3. 搜索代码
-
-```
-> 在 src 目录中搜索所有使用 console.log 的地方
-```
-
-### 4. 执行命令
-
-```
-> 运行 ls -la 命令并显示结果
-```
-
-### 5. 编辑文件
-
-```
-> 在 hello.js 中将 "Hello World" 改为 "Hello Claw"
-```
-
-## 项目结构
+## Project Structure / 項目結構
 
 ```
 src/
-  cli/          - CLI 入口和 REPL
-  agent/        - Agent 循环核心
-  tools/        - 工具实现
-  providers/    - LLM 提供者
-  session/      - 会话管理
-  context/      - 上下文构建
-  config/       - 配置管理
-  utils/        - 工具函数
+  cli/           # CLI entry, REPL, single command / CLI 入口、REPL、單次命令
+  agent/         # Agent loop core / 代理循環核心
+  tools/         # Tool implementations / 工具實現
+  providers/     # LLM providers / LLM 提供者
+  session/       # Session management / 會話管理
+  context/       # Context builder / 上下文構建
+  config/        # Configuration management / 配置管理
+  utils/         # Utilities / 工具函數
+  types/         # Type definitions / 類型定義
 ```
 
-## 技术栈
+---
+
+## Tech Stack / 技術棧
 
 - TypeScript 5.x
 - Node.js 18+
@@ -171,26 +152,43 @@ src/
 - Chalk
 - Zod
 
-## 开发
+---
+
+## Development / 開發
 
 ```bash
-# 开发模式（自动编译）
+# Development mode (auto-compile) / 開發模式（自動編譯）
 npm run dev
 
-# 运行测试
+# Run tests / 運行測試
 npm test
 
-# 清理编译输出
+# Clean build output / 清理編譯輸出
 npm run clean
 ```
 
-## 安全说明
+---
 
-- Shell 命令默认有白名单限制
-- 文件编辑操作会创建备份
-- 敏感路径（.env, .ssh 等）默认被阻止
-- 使用 `--dry-run` 模式预览操作
+## Safety Notes / 安全說明
 
-## License
+- Shell commands have whitelist restrictions / Shell 命令有白名單限制
+- File edit operations create backups / 文件編輯操作會創建備份
+- Sensitive paths (.env, .ssh, etc.) are blocked by default / 敏感路徑（.env、.ssh 等）默認被阻止
+- Use `--dry-run` to preview actions / 使用 `--dry-run` 預覽操作
+
+---
+
+## License / 許可證
 
 MIT
+
+---
+
+## Acknowledgments / 致謝
+
+This project draws inspiration from:
+- Claude Code CLI by Anthropic
+- OpenClaw
+- Nanobot
+
+All implementations are original / 所有實現均為原創

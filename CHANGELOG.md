@@ -1,41 +1,41 @@
-# Changelog
+# Changelog / 變更記錄
 
 ## [0.1.0] - 2024-04-08
 
-### 新增
+### Added / 新增
 
-- 初始版本发布
-- CLI 入口和 REPL 交互式对话
-- Agent Loop（状态机驱动）
-- 内置工具系统：
-  - `read_file` - 读取文件内容
-  - `write_file` - 写入文件
-  - `edit_file` - 文本编辑
-  - `list_dir` - 列出目录
-  - `search_text` - 文本搜索
-  - `run_shell` - 执行 shell 命令
-- 多 Provider 支持：
-  - Anthropic Claude
-  - OpenAI GPT
-  - 本地模型（OpenAI-compatible）
-- 会话管理（JSONL 持久化）
-- 配置系统（文件 + 环境变量 + 命令行）
-- 结构化日志
-- Dry-run 模式
+- Initial release / 初始版本發布
+- CLI entry and REPL / CLI 入口和交互式對話
+- Agent Loop (state machine driven) / 代理循環（狀態機驅動）
+- Built-in tool system / 內置工具系統：
+  - `read_file` - Read file content / 讀取文件內容
+  - `write_file` - Write file / 寫入文件
+  - `edit_file` - Text edit / 文本編輯
+  - `list_dir` - List directory / 列出目錄
+  - `search_text` - Text search / 文本搜索
+  - `run_shell` - Execute shell command / 執行 shell 命令
+- Multi-provider support / 多提供者支持：
+  - Anthropic Claude / Anthropic Claude
+  - OpenAI GPT / OpenAI GPT
+  - Local models (OpenAI-compatible) / 本地模型（OpenAI 兼容）
+- Session management (JSONL persistence) / 會話管理（JSONL 持久化）
+- Configuration system / 配置系統
+- Structured logging / 結構化日誌
+- Dry-run mode / 模擬運行模式
+- Startup profiling / 啟動性能分析
 
-### 架构
+### Architecture / 架構
 
-- 依赖注入设计
-- 轻量级消息总线
-- 类型安全（TypeScript）
-- 扁平配置层级
+- Dependency injection design / 依賴注入設計
+- Lightweight message bus / 輕量級消息總線
+- Type safety (TypeScript) / 類型安全（TypeScript）
+- Flat configuration hierarchy / 扁平配置層級
 
-## 参考研究
+### Acknowledgments / 致謝
 
-本项目参考了以下开源项目的设计思想：
+This project draws inspiration from:
+- Claude Code CLI by Anthropic
+- OpenClaw
+- Nanobot
 
-- **Claude Code CLI**: CLI 入口快速路径、工具化架构、状态管理
-- **OpenClaw**: Agent Loop 结构、Tool 抽象层、事件驱动
-- **Nanobot**: 轻量级设计、消息总线、配置即代码
-
-所有实现均为原创，仅借鉴设计思想。
+All implementations are original / 所有實現均為原創

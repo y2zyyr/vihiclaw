@@ -1,11 +1,11 @@
 {
-  "name": "claw",
+  "name": "vihiclaw",
   "version": "0.1.0",
-  "description": "本地优先的 AI coding agent CLI 工具",
+  "description": "A local-first AI coding agent CLI tool / 本地優先的 AI 編程代理 CLI 工具",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "claw": "./dist/cli/index.js"
+    "vihiclaw": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",

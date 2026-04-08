@@ -1,74 +1,74 @@
-# 设计决策记录
+# Design Decisions / 設計決策
 
-## 技术栈选择
+## Tech Stack Selection / 技術棧選擇
 
-### 决策：使用 TypeScript + Node.js
+### Decision: TypeScript + Node.js
 
-**原因：**
-- 参考项目 Claw Code CLI 和 OpenClaw 都是 TypeScript，证明该领域 TypeScript 生态成熟
-- 类型安全对 Agent 系统很重要（工具参数、API 响应）
-- Node.js 异步模型适合 IO 密集型任务（API 调用、文件操作）
-- 更好的跨平台支持
+**Reasons / 原因：**
+- Reference projects Claude Code CLI and OpenClaw both use TypeScript / 參考項目 Claude Code CLI 和 OpenClaw 都使用 TypeScript
+- Type safety is crucial for agent systems / 類型安全對代理系統至關重要
+- Node.js async model fits IO-intensive tasks / Node.js 異步模型適合 IO 密集型任務
+- Better cross-platform support / 更好的跨平台支持
 
-**未选择 Python 的原因：**
-- 虽然 Nanobot 是 Python，但无充分理由切换
-- TypeScript 的类型系统更严格
-- Node.js 在 CLI 工具领域有更好生态（commander, chalk, ora 等）
-
----
-
-## 架构决策
-
-### 决策：状态机驱动的 Agent Loop
-
-**方案对比：**
-| 方案 | 优点 | 缺点 | 选择 |
-|------|------|------|------|
-| OpenClaw 嵌套循环 | 功能完整 | 代码复杂，难以理解 | ❌ |
-| Nanobot Python 协程 | 简洁 | TypeScript 实现不同 | ❌ |
-| **状态机** | 清晰、可预测、易扩展 | 需要定义状态 | ✅ |
-
-**决策理由：**
-- 避免 OpenClaw 的复杂嵌套循环
-- 状态转换清晰，易于调试
-- 方便添加新状态（如 pause、confirm）
+**Why not Python / 不選 Python 的原因：**
+- No compelling reason to switch / 沒有充分理由切換
+- TypeScript's type system is stricter / TypeScript 的類型系統更嚴格
+- Better CLI tooling ecosystem / 更好的 CLI 工具生態
 
 ---
 
-### 决策：扁平配置层级
+## Architecture Decisions / 架構決策
 
-**方案对比：**
-- OpenClaw: 5+ 层配置（defaults → global → agent → session → runtime）
-- Nanobot: 2 层（defaults + user config）
+### Decision: State Machine Driven Agent Loop
 
-**决策：采用 2 层（默认值 + 用户配置）**
+**Options Comparison / 方案對比：**
+| Approach | Pros | Cons | Choice |
+|----------|------|------|--------|
+| OpenClaw nested loops | Feature complete / 功能完整 | Complex code / 代碼複雜 | ❌ |
+| Nanobot Python coroutines | Simple / 簡潔 | Different TS implementation / TS 實現不同 | ❌ |
+| **State machine** | Clear, predictable / 清晰、可預測 | Requires state definition / 需要定義狀態 | ✅ |
 
-**理由：**
-- 减少心智负担
-- 多数场景只需修改少数参数
-- 环境变量覆盖足够灵活
+**Decision Reason / 決策原因：**
+- Avoid OpenClaw's complex nested loops / 避免 OpenClaw 的複雜嵌套循環
+- Clear state transitions, easy to debug / 清晰的狀態轉換，易於調試
+- Easy to add new states / 易於添加新狀態
 
 ---
 
-### 决策：依赖注入而非全局单例
+### Decision: Flat Configuration Hierarchy
 
-**方案对比：**
-- OpenClaw 使用全局单例（Symbol.for），测试时容易污染
-- Nanobot 使用 Facade 模式，但仍有一定耦合
+**Options / 方案對比：**
+- OpenClaw: 5+ layers / 5+ 層（defaults → global → agent → session → runtime）
+- Nanobot: 2 layers / 2 層
 
-**决策：显式依赖注入**
+**Decision: 2 layers (defaults + user config) / 決策：2 層（默認值 + 用戶配置）**
 
-**理由：**
-- 便于单元测试（可 mock 依赖）
-- 明确的数据流
-- 避免隐藏的全局状态
+**Reasons / 原因：**
+- Reduce cognitive load / 減少心智負擔
+- Most scenarios only need to modify a few parameters / 多數場景只需修改少數參數
+- Environment variable overrides are flexible enough / 環境變量覆蓋足夠靈活
 
-**实现方式：**
+---
+
+### Decision: Dependency Injection over Global Singletons
+
+**Options Comparison / 方案對比：**
+- OpenClaw uses global singletons (Symbol.for), causes test pollution / OpenClaw 使用全局單例，導致測試污染
+- Nanobot uses Facade pattern but still has coupling / Nanobot 使用 Facade 模式但仍有耦合
+
+**Decision: Explicit dependency injection / 決策：顯式依賴注入**
+
+**Reasons / 原因：**
+- Easy unit testing (can mock dependencies) / 易於單元測試（可 mock 依賴）
+- Clear data flow / 明確的數據流
+- Avoid hidden global state / 避免隱藏的全局狀態
+
+**Implementation / 實現方式：**
 ```typescript
-// 不这样做
+// Not this way / 不這樣做
 const toolRegistry = getGlobalRegistry();
 
-// 这样做
+// Do this / 這樣做
 class Agent {
   constructor(
     private toolRegistry: ToolRegistry,
@@ -80,99 +80,96 @@ class Agent {
 
 ---
 
-### 决策：readline 而非 Ink（React for CLI）
+### Decision: Readline instead of Ink (React for CLI)
 
-**方案对比：**
-- Claude Code 使用 Ink，功能强大但学习曲线陡峭
-- 简单 readline 足够满足 REPL 需求
+**Options Comparison / 方案對比：**
+- Claude Code uses Ink, powerful but steep learning curve / Claude Code 使用 Ink，功能強大但學習曲線陡
+- Simple readline is sufficient for REPL needs / 簡單的 readline 足夠滿足 REPL 需求
 
-**决策：使用 Node.js 内置 readline**
+**Decision: Use Node.js built-in readline / 決策：使用 Node.js 內置 readline**
 
-**理由：**
-- 零额外依赖
-- 学习成本低
-- MVP 阶段足够使用
-- 后续可迁移到 Ink 如果需要复杂 UI
+**Reasons / 原因：**
+- Zero additional dependencies / 零額外依賴
+- Low learning cost / 學習成本低
+- Sufficient for MVP stage / MVP 階段足夠使用
+- Can migrate to Ink later if needed / 如需可後續遷移到 Ink
 
 ---
 
-## 工具系统设计
+## Tool System Design / 工具系統設計
 
-### 决策：装饰器 + 接口组合定义工具
+### Decision: Decorator + Interface Hybrid
 
-**方案对比：**
-- OpenClaw: 纯接口，类型安全但样板代码多
-- Nanobot: Python 装饰器，简洁
+**Options / 方案對比：**
+- OpenClaw: Pure interface, type-safe but verbose / 純接口，類型安全但冗長
+- Nanobot: Python decorators, concise / Python 裝飾器，簡潔
 
-**决策：TypeScript 装饰器风格 + 接口**
+**Decision: TypeScript decorator style + Interface / 決策：TypeScript 裝飾器風格 + 接口**
 
-**实现：**
+**Implementation / 實現：**
 ```typescript
 interface Tool<TParams, TResult> {
   name: string;
   description: string;
   parameters: JSONSchema;
-  execute(params: TParams, ctx: ToolContext): Promise<TResult>;
-}
-
-function defineTool<TParams, TResult>(def: ToolDefinition<TParams, TResult>): Tool<TParams, TResult> {
-  return def;
+  execute(params: TParams, context: ToolContext): Promise<TResult>;
+  isConcurrencySafe?(params: TParams): boolean;
 }
 ```
 
-**理由：**
-- 保持类型安全
-- 声明式定义，可读性好
-- 自动生成 JSON Schema
+**Reasons / 原因：**
+- Maintain type safety / 保持類型安全
+- Declarative definition, good readability / 聲明式定義，可讀性好
+- Automatic JSON Schema generation / 自動生成 JSON Schema
 
 ---
 
-### 决策：工具串行执行（默认）
+### Decision: Serial Tool Execution (Default)
 
-**方案对比：**
-- Claude Code: 复杂并发控制（partitionToolCalls）
-- OpenClaw: 也有并发调度
+**Options / 方案對比：**
+- Claude Code: Complex concurrency control (partitionToolCalls) / 複雜的並發控制
+- OpenClaw: Also has concurrent scheduling / 也有並發調度
 
-**决策：默认串行，保留并发扩展点**
+**Decision: Serial by default, concurrency opt-in / 決策：默認串行，並發可選**
 
-**理由：**
-- 简化初始实现
-- 避免并发导致的竞态条件
-- Agent 通常一次只调用一个工具
-- 后续可按需添加并发
-
----
-
-## 存储设计
-
-### 决策：JSONL 文件存储
-
-**方案对比：**
-- 数据库：太重，引入运维负担
-- 纯 JSON：追加效率低
-- JSONL：每行一个 JSON，追加友好
-
-**决策：JSONL 格式存储会话**
-
-**理由（借鉴 Nanobot）：**
-- 轻量级，无数据库依赖
-- 追加写入 O(1)
-- 人类可读
-- 便于版本控制（如有需要）
+**Reasons / 原因：**
+- Simplify initial implementation / 簡化初始實現
+- Avoid race conditions from concurrency / 避免並發導致的競態條件
+- Agents typically call one tool at a time / 代理通常一次只調用一個工具
+- Can add concurrency later if needed / 如需可後續添加並發
 
 ---
 
-## 错误处理
+## Storage Design / 存儲設計
 
-### 决策：分层错误处理
+### Decision: JSONL File Storage
 
-**错误分类：**
-1. **用户错误**：配置错误、参数错误 → 清晰提示，立即退出
-2. **可重试错误**：网络超时、API 限流 → 自动重试，指数退避
-3. **致命错误**：认证失败、配置错误 → 快速失败，不重试
-4. **工具错误**：命令不存在、权限不足 → 返回给 LLM，继续对话
+**Options / 方案對比：**
+- Database: Too heavy, adds operational burden / 數據庫：太重，增加運維負擔
+- Pure JSON: Poor append efficiency / 純 JSON：追加效率低
+- JSONL: One JSON per line, append-friendly / JSONL：每行一個 JSON，追加友好
 
-**实现：**
+**Decision: JSONL format for session storage / 決策：JSONL 格式存儲會話**
+
+**Reasons (inspired by Nanobot) / 原因（受 Nanobot 啟發）：**
+- Lightweight, no database dependency / 輕量，無數據庫依賴
+- Append write O(1) / 追加寫入 O(1)
+- Human readable / 人類可讀
+- Easy version control if needed / 如需易於版本控制
+
+---
+
+## Error Handling / 錯誤處理
+
+### Decision: Layered Error Handling
+
+**Error Classification / 錯誤分類：**
+1. **User errors**: Config errors, param errors → Clear message, exit immediately / 用戶錯誤：配置錯誤、參數錯誤 → 清晰提示，立即退出
+2. **Retryable errors**: Network timeout, API rate limit → Auto retry with backoff / 可重試錯誤：網絡超時、API 限流 → 自動重試，指數退避
+3. **Fatal errors**: Auth failure, config errors → Fast fail, no retry / 致命錯誤：認證失敗、配置錯誤 → 快速失敗，不重試
+4. **Tool errors**: Command not found, permission denied → Return to LLM, continue / 工具錯誤：命令不存在、權限不足 → 返回給 LLM，繼續對話
+
+**Implementation / 實現：**
 ```typescript
 class ClawError extends Error {
   constructor(
@@ -187,45 +184,66 @@ class ClawError extends Error {
 
 ---
 
-## 安全决策
+## Security Decisions / 安全決策
 
-### 决策：三级安全模型
+### Decision: Three-Level Safety Model
 
-**级别定义：**
-1. **safe**: 只读操作（read_file, list_dir, search_text）
-2. **confirm**: 修改操作（write_file, edit_file, run_shell）
-3. **blocked**: 完全禁止
+**Level Definitions / 級別定義：**
+1. **safe**: Read-only operations, no confirmation needed / 只讀操作，無需確認
+2. **confirm**: Modification operations, requires confirmation / 修改操作，需要確認
+3. **blocked**: Completely prohibited / 完全禁止
 
-**决策理由：**
-- 平衡安全和便利
-- 默认保护，允许用户配置
-- dry-run 模式用于测试
+**Reasons / 決策原因：**
+- Balance security and convenience / 平衡安全和便利
+- Default protection, allow user configuration / 默認保護，允許用戶配置
+- Dry-run mode for testing / 模擬運行模式用於測試
 
 ---
 
-### 决策：Shell 命令白名单
+### Decision: Shell Command Whitelist
 
-**决策：默认只允许安全命令**
+**Decision: Only allow safe commands by default / 決策：默認只允許安全命令**
 
 ```typescript
 const DEFAULT_ALLOWED_COMMANDS = [
-  'ls', 'cat', 'echo', 'grep', 'find', 
-  'head', 'tail', 'wc', 'pwd', 'which'
+  'ls', 'cat', 'echo', 'grep', 'find', 'head', 'tail', 'wc', 'pwd', 'which',
+  'mkdir', 'touch', 'cp', 'mv', 'rm', 'npm', 'node', 'git'
 ];
 ```
 
-**理由：**
-- 防止误操作（rm -rf /）
-- 用户可配置扩展
-- 明确的安全边界
+**Reasons / 原因：**
+- Prevent accidents (rm -rf /) / 防止誤操作
+- User-configurable extension / 用戶可配置擴展
+- Clear security boundaries / 明確的安全邊界
 
 ---
 
-## 扩展性决策
+## Performance Decisions / 性能決策
 
-### 决策：注册表模式
+### Decision: Startup Profiling (from Claude Code CLI)
 
-**实现：**
+**Implementation / 實現：**
+```typescript
+const SHOULD_PROFILE = process.env.CLAW_PROFILE_STARTUP === '1';
+
+export function profileCheckpoint(name: string): void {
+  if (!SHOULD_PROFILE) return;
+  performance.mark(name);
+}
+```
+
+**Reasons / 原因：**
+- Optional profiling to avoid overhead / 可選分析，避免開銷
+- Environment variable controlled / 環境變量控制
+- Helps identify startup bottlenecks / 幫助識別啟動瓶頸
+
+---
+
+## Extension Decisions / 擴展決策
+
+### Decision: Registry Pattern
+
+**Implementation / 實現：**
 ```typescript
 class ToolRegistry {
   private tools = new Map<string, Tool>();
@@ -237,48 +255,44 @@ class ToolRegistry {
   get(name: string): Tool | undefined {
     return this.tools.get(name);
   }
-  
-  getAll(): Tool[] {
-    return Array.from(this.tools.values());
-  }
 }
 ```
 
-**理由：**
-- 简单有效
-- 运行时动态注册
-- 便于插件系统扩展
+**Reasons / 原因：**
+- Simple and effective / 簡單有效
+- Dynamic registration at runtime / 運行時動態註冊
+- Easy to extend with plugin system / 易於擴展插件系統
 
 ---
 
-## 日志决策
+## Logging Decisions / 日誌決策
 
-### 决策：结构化日志 + 文件日志
+### Decision: Structured Logging + File Logging
 
-**实现：**
-- 控制台：人类可读的彩色输出
-- 文件：结构化 JSON，便于分析
+**Implementation / 實現：**
+- Console: Human-readable colored output / 控制台：人類可讀的彩色輸出
+- File: Structured JSON for analysis / 文件：結構化 JSON 便於分析
 
-**理由：**
-- 开发时友好（彩色控制台）
-- 生产可观测（结构化日志）
-- 便于问题排查
+**Reasons / 原因：**
+- Developer-friendly (colored console) / 開發者友好（彩色控制台）
+- Production observable (structured logs) / 生產可觀測（結構化日誌）
+- Easy troubleshooting / 便於問題排查
 
 ---
 
-## 待决策项
+## Pending Decisions / 待決策項
 
-### 1. 流式响应支持
-- **状态**: 待实现
-- **选项**: Server-Sent Events vs WebSocket vs HTTP/2
-- **倾向**: SSE，简单且支持良好
+### 1. Streaming Response Support / 流式響應支持
+- **Status**: To be implemented / 待實現
+- **Options**: Server-Sent Events vs WebSocket vs HTTP/2
+- **Preference**: SSE, simple and well-supported / SSE，簡單且支持良好
 
-### 2. 插件系统架构
-- **状态**: v0.2 考虑
-- **选项**: 动态导入 vs 配置文件
-- **倾向**: 动态导入，简单直接
+### 2. Plugin System Architecture / 插件系統架構
+- **Status**: v0.2 consideration / v0.2 考慮
+- **Options**: Dynamic import vs config file / 動態導入 vs 配置文件
+- **Preference**: Dynamic import, simple and direct / 動態導入，簡單直接
 
-### 3. MCP 支持
-- **状态**: v0.3 考虑
-- **评估**: 是否必要？Nanobot 已实现，但耦合度高
-- **倾向**: 独立实现，不依赖 MCP 规范
+### 3. MCP Support / MCP 支持
+- **Status**: v0.3 consideration / v0.3 考慮
+- **Evaluation**: Is it necessary? / 是否必要？
+- **Preference**: Independent implementation, not dependent on MCP spec / 獨立實現，不依賴 MCP 規範

@@ -12,7 +12,7 @@ import { ClawError } from '../utils/errors.js';
 export async function runREPL(overrides) {
     const config = await loadConfig(overrides);
     const logger = createLogger(config.logLevel, config.logDir);
-    logger.info('Starting Claw REPL');
+    logger.info('Starting VIHIclaw REPL');
     // Initialize components
     const toolRegistry = createDefaultRegistry();
     const sessionManager = new SessionManager(config.sessionDir);
@@ -50,10 +50,10 @@ export async function runREPL(overrides) {
         },
     });
     // Print welcome message
-    console.log(chalk.bold.cyan('\n🐾 Claw - AI Coding Agent'));
+    console.log(chalk.bold.cyan('\n🐾 VIHIclaw - AI Coding Agent/AI 編程代理'));
     console.log(chalk.gray(`Session: ${session.id}`));
     console.log(chalk.gray(`Provider: ${config.provider} (${config.model})`));
-    console.log(chalk.gray('Type "exit" or press Ctrl+C to quit\n'));
+    console.log(chalk.gray('Type "exit" or press Ctrl+C to quit / 輸入 "exit" 或按 Ctrl+C 退出'));
     // Create readline interface
     const rl = readline.createInterface({
         input: process.stdin,

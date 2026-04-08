@@ -1,13 +1,13 @@
 #!/bin/bash
-# Claw 启动脚本
+# VIHIclaw Startup Script / VIHIclaw 啟動腳本
 
 set -e
 
-# 检查 dist 目录是否存在
+# Check if dist directory exists / 檢查 dist 目錄是否存在
 if [ ! -d "dist" ]; then
-    echo "编译中..."
+    echo "Building... / 編譯中..."
     npm run build
 fi
 
-# 运行 Claw
+# Run VIHIclaw / 運行 VIHIclaw
 exec node dist/cli/index.js "$@"

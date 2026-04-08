@@ -1,37 +1,36 @@
-# Claw 架构设计文档
+# VIHIclaw Architecture / VIHIclaw 架構
 
-## 项目概述
-Claw 是一个本地优先的 AI coding agent CLI 工具，专注于简洁、类型安全和可扩展性。
+## Overview / 概述
 
----
-
-## 架构原则
-
-### 1. 简洁优先
-- 功能完整但代码量最小化
-- 避免过度工程和不必要的抽象
-- 从简单开始，按需增加复杂度
-
-### 2. 类型安全
-- 端到端 TypeScript 类型
-- 编译时捕获错误
-- 不因灵活性牺牲类型安全
-
-### 3. 扁平配置
-- 最多两层配置层级
-- 减少心智负担
-- 合理默认值，多数场景无需配置
-
-### 4. 显式优于隐式
-- 依赖注入而非全局单例
-- 明确的数据流
-- 清晰的模块边界
+VIHIclaw is a local-first AI coding agent CLI tool focused on simplicity, type safety, and extensibility / VIHIclaw 是一個本地優先的 AI 編程代理 CLI 工具，專注於簡潔性、類型安全和可擴展性。
 
 ---
 
-## 系统架构
+## Architecture Principles / 架構原則
 
-### 整体架构图
+### 1. Simplicity First / 簡潔優先
+- Complete functionality with minimal code complexity / 功能完整但代碼複雜度最小化
+- Avoid over-engineering / 避免過度工程
+- Start simple, add complexity only when needed / 從簡單開始，按需增加複雜度
+
+### 2. Type Safety / 類型安全
+- End-to-end TypeScript types / 端到端 TypeScript 類型
+- Catch errors at compile time / 編譯時捕獲錯誤
+- Never sacrifice type safety for flexibility / 不為靈活性犧牲類型安全
+
+### 3. Flat Configuration / 扁平配置
+- Maximum 2 configuration layers / 最多兩層配置
+- Reduce cognitive load / 減少心智負擔
+- Sensible defaults for 99% of use cases / 99% 場景的合理默認值
+
+### 4. Explicit over Implicit / 顯式優於隱式
+- Dependency injection over global singletons / 依賴注入而非全局單例
+- Clear data flow / 明確的數據流
+- Explicit module boundaries / 顯式的模塊邊界
+
+---
+
+## System Architecture / 系統架構
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -65,68 +64,57 @@ Claw 是一个本地优先的 AI coding agent CLI 工具，专注于简洁、类
 
 ---
 
-## 模块详细设计
+## Module Design / 模塊設計
 
-### 1. CLI Layer
+### 1. CLI Layer / CLI 層
 
-#### 职责
-- 命令行参数解析
-- 命令路由
-- REPL 交互
+#### Responsibilities / 職責
+- Command-line argument parsing / 命令行參數解析
+- Command routing / 命令路由
+- REPL interaction / REPL 交互
 
-#### 关键组件
+#### Key Components / 關鍵組件
+
+**cli/index.ts** - Entry point with fast-path optimization / 帶快速路徑優化的入口點
 ```typescript
-// cli/index.ts
 export async function main(argv: string[]): Promise<void> {
-  // 快速路径：--version, --help 不加载其他模块
+  // Fast-path: --version without module loading / 快速路徑：無需模塊加載的 --version
   if (argv.includes('--version')) {
     console.log(VERSION);
     return;
   }
-  
-  // 正常路径：加载配置并执行
-  const config = await loadConfig();
-  const command = parseCommand(argv);
-  await executeCommand(command, config);
-}
-
-// cli/repl.ts
-export class REPL {
-  private rl: readline.Interface;
-  private agent: Agent;
-  
-  async start(): Promise<void> {
-    // REPL 循环实现
-  }
+  // Normal path with dynamic imports / 帶動態導入的正常路徑
 }
 ```
 
+**cli/repl.ts** - Interactive REPL / 交互式 REPL
+- Uses Node.js readline / 使用 Node.js readline
+- Supports command shortcuts / 支持命令快捷方式
+- State change callbacks / 狀態變更回調
+
 ---
 
-### 2. Agent Core
+### 2. Agent Core / 代理核心
 
-#### 职责
-- Agent 主循环（状态机驱动）
-- 任务生命周期管理
-- 错误恢复和重试
+#### Responsibilities / 職責
+- Agent main loop (state machine driven) / 代理主循環（狀態機驅動）
+- Task lifecycle management / 任務生命周期管理
+- Error recovery and retry / 錯誤恢復和重試
 
-#### 状态机设计
+#### State Machine Design / 狀態機設計
+
 ```typescript
 type AgentState = 
-  | 'idle'      // 等待输入
-  | 'thinking'  // LLM 推理中
-  | 'executing' // 工具执行中
-  | 'paused'    // 暂停（需要确认）
-  | 'done';     // 完成
+  | 'idle'      // Waiting for input / 等待輸入
+  | 'thinking'  // LLM inference / LLM 推理中
+  | 'executing' // Tool execution / 工具執行中
+  | 'paused'    // Paused (confirmation needed) / 暫停（需要確認）
+  | 'done';     // Completed / 完成
 
 class AgentLoop {
   private state: AgentState = 'idle';
-  private context: Context;
   
   async run(userInput: string): Promise<void> {
-    this.context.addUserMessage(userInput);
-    this.state = 'thinking';
-    
     while (this.state !== 'done') {
       switch (this.state) {
         case 'thinking':
@@ -135,324 +123,197 @@ class AgentLoop {
         case 'executing':
           this.state = await this.executeTools();
           break;
-        case 'paused':
-          this.state = await this.handleUserConfirm();
-          break;
       }
     }
   }
-  
-  private async think(): Promise<AgentState> {
-    const response = await this.provider.complete({
-      messages: this.context.getMessages(),
-      tools: this.tools.getDefinitions(),
-    });
-    
-    if (response.toolCalls) {
-      this.pendingToolCalls = response.toolCalls;
-      return 'executing';
-    }
-    
-    this.context.addAssistantMessage(response.content);
-    return 'done';
-  }
 }
 ```
 
+**Advantages over nested loops / 相對嵌套循環的優勢:**
+- Clear state transitions / 清晰的狀態轉換
+- Easy to debug / 易於調試
+- Simple to extend with new states / 易於擴展新狀態
+
 ---
 
-### 3. Tools System
+### 3. Tools System / 工具系統
 
-#### 职责
-- 工具定义和注册
-- 参数验证
-- 执行和错误处理
+#### Responsibilities / 職責
+- Tool definition and registration / 工具定義和註冊
+- Parameter validation / 參數驗證
+- Execution and error handling / 執行和錯誤處理
 
-#### 接口设计
+#### Interface Design / 接口設計
+
 ```typescript
-// tools/base.ts
+// Tool base interface / 工具基礎接口
 interface Tool<TParams = unknown, TResult = unknown> {
   name: string;
   description: string;
-  parameters: JSONSchema;
+  parameters: ToolDefinition['parameters'];
   execute(params: TParams, context: ToolContext): Promise<TResult>;
+  isConcurrencySafe?(params: TParams): boolean;
 }
 
-interface ToolContext {
-  session: Session;
-  logger: Logger;
-  dryRun: boolean;
-}
-
-// 装饰器定义（简化版）
-interface ToolDefinition<TParams, TResult> {
-  name: string;
-  description: string;
-  parameters: JSONSchema;
-  execute: (params: TParams, ctx: ToolContext) => Promise<TResult>;
-}
-
+// Decorator style / 裝飾器風格
 function defineTool<TParams, TResult>(
-  def: ToolDefinition<TParams, TResult>
-): Tool<TParams, TResult> {
-  return { ...def };
+  name: string,
+  description: string,
+  parameters: JSONSchema,
+  execute: (params: TParams, ctx: ToolContext) => Promise<TResult>
+): Tool<TParams, TResult>;
+```
+
+#### Concurrency Control / 並發控制
+
+Based on Claude Code CLI's partition strategy / 基於 Claude Code CLI 的分區策略：
+
+```typescript
+// Tool declares concurrency safety / 工具聲明並發安全性
+const readFileTool = defineTool(
+  'read_file',
+  'Read file contents',
+  parameters,
+  async (params, ctx) => { /* ... */ }
+);
+
+// Mark as concurrency-safe / 標記為並發安全
+readFileTool.isConcurrencySafe = () => true;
+
+// Batch execution / 批次執行
+async function executeTools(toolCalls: ToolCall[]) {
+  const safeTools = toolCalls.filter(tc => 
+    registry.get(tc.name)?.isConcurrencySafe?.(tc.arguments)
+  );
+  // Run safe tools in parallel / 並行執行安全工具
+  await Promise.all(safeTools.map(tc => executeTool(tc)));
 }
 ```
 
-#### 内置工具
-| 工具名 | 功能 | 安全级别 |
-|--------|------|----------|
-| read_file | 读取文件内容 | safe |
-| write_file | 写入/覆盖文件 | confirm |
-| edit_file | 文本编辑（diff） | confirm |
-| list_dir | 列出目录内容 | safe |
-| search_text | 文本搜索 | safe |
-| run_shell | 执行 shell 命令 | confirm |
-
 ---
 
-### 4. Providers
+### 4. Providers / 提供者
 
-#### 职责
-- LLM API 封装
-- 流式响应处理
-- 错误重试
+#### Responsibilities / 職責
+- LLM API encapsulation / LLM API 封裝
+- Streaming response handling / 流式響應處理
+- Error retry logic / 錯誤重試邏輯
 
-#### 接口设计
+#### Interface / 接口
+
 ```typescript
-// providers/base.ts
 interface LLMProvider {
   readonly name: string;
-  
   complete(params: CompletionParams): Promise<CompletionResult>;
-  completeStream(params: CompletionParams): AsyncIterable<StreamChunk>;
-}
-
-interface CompletionParams {
-  messages: Message[];
-  tools?: ToolDefinition[];
-  temperature?: number;
-  maxTokens?: number;
-}
-
-interface CompletionResult {
-  content: string;
-  toolCalls?: ToolCall[];
-  usage?: TokenUsage;
+  completeStream?(params: CompletionParams): AsyncIterable<StreamChunk>;
 }
 ```
 
-#### 支持提供者
-- Anthropic (Claude)
-- OpenAI (GPT)
-- Local (OpenAI-compatible API)
-
 ---
 
-### 5. Session & Context
+### 5. Session & Context / 會話與上下文
 
-#### 职责
-- 对话历史管理
-- 会话持久化
-- Token 管理
+#### Responsibilities / 職責
+- Conversation history management / 對話歷史管理
+- Session persistence / 會話持久化
+- Token management / Token 管理
 
-#### 设计
+#### Design / 設計
+
 ```typescript
-// session/manager.ts
-interface Session {
-  id: string;
-  createdAt: Date;
-  updatedAt: Date;
-  messages: Message[];
-  metadata: Record<string, unknown>;
-}
-
-class SessionManager {
-  private store: SessionStore;
-  
-  async create(): Promise<Session> {
-    const session: Session = {
-      id: generateId(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      messages: [],
-      metadata: {},
-    };
-    await this.store.save(session);
-    return session;
-  }
-  
-  async load(sessionId: string): Promise<Session | null> {
-    return this.store.load(sessionId);
-  }
-  
+// JSONL-based storage / 基於 JSONL 的存儲
+class SessionStore {
   async appendMessage(sessionId: string, message: Message): Promise<void> {
-    await this.store.appendMessage(sessionId, message);
+    const line = JSON.stringify({ type: 'message', ...message });
+    await fs.appendFile(filePath, line + '\n');
   }
 }
 
-// context/builder.ts
+// Context builder with truncation / 帶截斷的上下文構建
 class ContextBuilder {
-  private session: Session;
-  private maxTokens: number;
+  private messages: Message[] = [];
   
   getMessages(): Message[] {
-    // 实现 token 截断策略
-    return this.truncateMessages(this.session.messages);
+    return this.truncateMessages(this.messages);
   }
   
-  addUserMessage(content: string): void {
-    this.session.messages.push({ role: 'user', content });
-  }
-  
-  addAssistantMessage(content: string, toolCalls?: ToolCall[]): void {
-    this.session.messages.push({ 
-      role: 'assistant', 
-      content,
-      toolCalls 
-    });
-  }
-  
-  addToolResult(toolCallId: string, content: string): void {
-    this.session.messages.push({
-      role: 'tool',
-      toolCallId,
-      content,
-    });
+  private truncateMessages(msgs: Message[]): Message[] {
+    // Keep recent messages under token limit / 保留 token 限制內的最近消息
+    return msgs.slice(-MAX_CONTEXT_MESSAGES);
   }
 }
 ```
 
 ---
 
-### 6. Configuration
+### 6. Configuration / 配置
 
-#### 配置层级（扁平化）
+#### Flat Configuration Layers / 扁平配置層級
+
 ```typescript
-// config/schema.ts
 interface ClawConfig {
-  // Provider 设置
+  // Provider settings / 提供者設置
   provider: 'anthropic' | 'openai' | 'local';
   model: string;
   apiKey?: string;
   baseUrl?: string;
   
-  // Agent 行为
+  // Agent behavior / 代理行為
   maxIterations: number;
   temperature: number;
   maxTokens?: number;
   
-  // 安全设置
+  // Safety settings / 安全設置
   dryRun: boolean;
   confirmDestructive: boolean;
   allowedShellCommands: string[];
   blockedPaths: string[];
   
-  // 会话设置
+  // Paths / 路徑
   sessionDir: string;
   logDir: string;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
-  
-  // 功能开关
-  streamResponse: boolean;
-  saveSession: boolean;
 }
-
-// 默认值
-const DEFAULT_CONFIG: Partial<ClawConfig> = {
-  provider: 'anthropic',
-  model: 'claude-sonnet-4-6',
-  maxIterations: 50,
-  temperature: 0.7,
-  dryRun: false,
-  confirmDestructive: true,
-  allowedShellCommands: ['ls', 'cat', 'echo', 'grep', 'find'],
-  blockedPaths: ['.env', '.ssh', '.aws'],
-  sessionDir: '~/.claw/sessions',
-  logDir: '~/.claw/logs',
-  logLevel: 'info',
-  streamResponse: true,
-  saveSession: true,
-};
 ```
 
-#### 加载优先级
-1. 配置文件 (`~/.claw/config.json`)
-2. 环境变量 (`CLAW_PROVIDER`, `CLAW_API_KEY` 等)
-3. 命令行参数 (`--provider`, `--model` 等)
-4. 运行时覆盖
+#### Loading Priority / 加載優先級
+
+1. Config file (`~/.claw/config.json`) / 配置文件
+2. Environment variables (`CLAW_*`) / 環境變量
+3. CLI arguments (`--provider`, `--model`) / 命令行參數
+4. Runtime overrides / 運行時覆蓋
 
 ---
 
-### 7. Message Bus
+### 7. Performance Profiling / 性能分析
 
-#### 职责
-- 组件间解耦通信
-- 事件广播
-- 轻量级实现
+Based on Claude Code CLI's startupProfiler / 基於 Claude Code CLI 的 startupProfiler：
 
-#### 设计
 ```typescript
-// bus/index.ts
-type EventType = 
-  | 'agent:start'
-  | 'agent:think'
-  | 'agent:tool_call'
-  | 'agent:tool_result'
-  | 'agent:complete'
-  | 'agent:error'
-  | 'tool:execute';
+// Optional profiling with sampling / 帶采樣的可選分析
+const SHOULD_PROFILE = process.env.CLAW_PROFILE_STARTUP === '1';
 
-interface BusEvent {
-  type: EventType;
-  payload: unknown;
-  timestamp: number;
+export function profileCheckpoint(name: string): void {
+  if (!SHOULD_PROFILE) return;
+  performance.mark(name);
 }
 
-type EventHandler = (event: BusEvent) => void | Promise<void>;
-
-class MessageBus {
-  private handlers: Map<EventType, Set<EventHandler>> = new Map();
-  
-  on(event: EventType, handler: EventHandler): () => void {
-    if (!this.handlers.has(event)) {
-      this.handlers.set(event, new Set());
-    }
-    this.handlers.get(event)!.add(handler);
-    
-    // 返回取消订阅函数
-    return () => this.handlers.get(event)?.delete(handler);
-  }
-  
-  emit(event: EventType, payload: unknown): void {
-    const handlers = this.handlers.get(event);
-    if (!handlers) return;
-    
-    const busEvent: BusEvent = {
-      type: event,
-      payload,
-      timestamp: Date.now(),
-    };
-    
-    for (const handler of handlers) {
-      try {
-        handler(busEvent);
-      } catch (error) {
-        console.error(`Event handler error for ${event}:`, error);
-      }
-    }
-  }
-}
+// Usage in startup phases / 在啟動階段使用
+profileCheckpoint('cli_entry');
+// ... load modules / 加載模塊
+profileCheckpoint('modules_loaded');
+// ... initialize / 初始化
+profileCheckpoint('init_complete');
 ```
 
 ---
 
-## 数据流
+## Data Flow / 數據流
 
-### 单次交互流程
+### Single Interaction Flow / 單次交互流程
 
 ```
-User Input
+User Input / 用戶輸入
     │
     ▼
 ┌─────────────┐
@@ -484,7 +345,7 @@ User Input
 │ (toolCalls?)│
 └──────┬──────┘
        │
-       ├── No ──▶ Save to context ──▶ Return to user
+       ├── No ──▶ Save to context ──▶ Return to user / 保存到上下文 ──▶ 返回用戶
        │
        └── Yes
            │
@@ -492,12 +353,6 @@ User Input
     ┌─────────────┐
     │  Tool Loop  │
     │ (execute)   │
-    └──────┬──────┘
-           │
-           ▼
-    ┌─────────────┐
-    │   Tools     │
-    │  (execute)  │
     └──────┬──────┘
            │
            ▼
@@ -511,19 +366,20 @@ User Input
     │  (update)   │
     └─────────────┘
            │
-           └──────▶ Continue loop
+           └──────▶ Continue loop / 繼續循環
 ```
 
 ---
 
-## 扩展点
+## Extension Points / 擴展點
 
-### 1. 添加新工具
+### Adding New Tools / 添加新工具
+
 ```typescript
 // tools/my_tool.ts
 export const myTool = defineTool({
   name: 'my_tool',
-  description: 'Does something useful',
+  description: 'Does something useful / 執行有用操作',
   parameters: {
     type: 'object',
     properties: {
@@ -532,108 +388,70 @@ export const myTool = defineTool({
     required: ['arg'],
   },
   async execute(params, ctx) {
-    // 实现
+    // Implementation / 實現
     return result;
   },
 });
 
-// 注册
+// Register / 註冊
 registry.register(myTool);
 ```
 
-### 2. 添加新 Provider
+### Adding New Providers / 添加新提供者
+
 ```typescript
-// providers/my_provider.ts
 export class MyProvider implements LLMProvider {
   readonly name = 'my-provider';
   
   async complete(params: CompletionParams): Promise<CompletionResult> {
-    // 实现 API 调用
-  }
-  
-  async *completeStream(params: CompletionParams): AsyncIterable<StreamChunk> {
-    // 实现流式响应
+    // API implementation / API 實現
   }
 }
 ```
 
 ---
 
-## 安全设计
+## Security Design / 安全設計
 
-### 1. 工具执行安全
-- **Safe 级别**：只读操作，无需确认
-- **Confirm 级别**：需要用户确认
-- **Block 级别**：完全禁止
+### 1. Tool Safety Levels / 工具安全級別
+- **safe**: Read-only operations, no confirmation needed / 只讀操作，無需確認
+- **confirm**: Modification operations, user confirmation required / 修改操作，需要用戶確認
+- **blocked**: Completely prohibited / 完全禁止
 
-### 2. 路径安全
-- 检查路径是否在允许列表
-- 禁止访问敏感路径（.env, .ssh 等）
-- 相对路径解析为绝对路径
+### 2. Path Security / 路徑安全
+- Check path against allowlist / 檢查路徑是否在允許列表
+- Block sensitive paths (.env, .ssh, etc.) / 阻止敏感路徑
+- Resolve relative paths to absolute / 將相對路徑解析為絕對路徑
 
-### 3. Shell 安全
-- 只允许配置的命令
-- 参数转义防止注入
-- 超时控制
+### 3. Shell Security / Shell 安全
+- Whitelist of allowed commands / 允許命令的白名單
+- Argument escaping to prevent injection / 參數轉義防止注入
+- Timeout controls / 超時控制
 
-### 4. Dry Run 模式
-- 所有工具只打印不执行
-- 用于测试和调试
-
----
-
-## 性能考虑
-
-### 1. 启动优化
-- 快速路径：--version, --help 不加载其他模块
-- 延迟加载：非必要模块按需导入
-
-### 2. 内存管理
-- Token 估算和上下文截断
-- 会话历史自动清理
-
-### 3. 并发控制
-- 默认串行执行（简单可靠）
-- 可选并发模式（高级用户）
+### 4. Dry Run Mode / 模擬運行模式
+- All tools print without execution / 所有工具只打印不執行
+- For testing and debugging / 用於測試和調試
 
 ---
 
-## 测试策略
+## Evolution Roadmap / 演進路線圖
 
-### 单元测试
-- 每个工具独立测试
-- Provider 使用 mock
-- 配置加载测试
+### v0.1 (Current) / 當前版本
+- [x] CLI entry and REPL / CLI 入口和 REPL
+- [x] State machine agent loop / 狀態機代理循環
+- [x] Basic tools / 基礎工具
+- [x] Multi-provider support / 多提供者支持
+- [x] Session management / 會話管理
+- [x] Structured logging / 結構化日誌
+- [x] Performance profiling / 性能分析
 
-### 集成测试
-- 端到端 Agent 循环测试
-- 真实工具执行（沙箱环境）
+### v0.2 / 下個版本
+- [ ] Streaming responses / 流式響應
+- [ ] Tool concurrency / 工具並發
+- [ ] More built-in tools / 更多內置工具
+- [ ] Session resume / 會話恢復
 
-### 示例验证
-- 每个示例任务必须可运行
-- 作为回归测试
-
----
-
-## 演进路线
-
-### v0.1 (MVP)
-- [x] CLI 入口和 REPL
-- [x] Agent 循环（状态机）
-- [x] 基础工具（read, write, edit, list, search, shell）
-- [x] Anthropic Provider
-- [x] 会话管理和日志
-- [x] 配置系统
-- [x] Dry Run 模式
-
-### v0.2
-- [ ] OpenAI Provider
-- [ ] 流式响应
-- [ ] 工具并发执行
-- [ ] 更多内置工具
-
-### v0.3
-- [ ] 插件系统
-- [ ] MCP 支持
-- [ ] 多会话管理
-- [ ] Web UI
+### v0.3 / 未來版本
+- [ ] Plugin system / 插件系統
+- [ ] MCP support / MCP 支持
+- [ ] Web UI / Web 界面
