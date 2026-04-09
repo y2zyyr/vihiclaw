@@ -5,7 +5,7 @@ import { listDirTool } from './dir.js';
 import { searchTextTool } from './search.js';
 import { runShellTool } from './shell.js';
 import { editFileTool } from './edit.js';
-import { gitStatusTool, gitDiffTool, gitLogTool } from './git.js';
+import { gitStatusTool, gitDiffTool, gitLogTool, gitBranchTool, gitStashTool } from './git.js';
 export function createDefaultRegistry() {
     const registry = new ToolRegistry();
     // File system tools / 文件系統工具
@@ -20,6 +20,8 @@ export function createDefaultRegistry() {
     registry.register(gitStatusTool);
     registry.register(gitDiffTool);
     registry.register(gitLogTool);
+    registry.register(gitBranchTool);
+    registry.register(gitStashTool);
     return registry;
 }
 export * from './base.js';

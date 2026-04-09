@@ -114,5 +114,5 @@ export const searchTextTool = defineTool('search_text', 'Search for text pattern
     catch (error) {
         throw new ToolError(`Failed to search: ${error}`);
     }
-});
+}, { isConcurrencySafe: true });
 //# sourceMappingURL=search.js.map

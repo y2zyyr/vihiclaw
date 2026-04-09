@@ -91,7 +91,8 @@ export const gitStatusTool = defineTool(
         error: `Failed to check git status / 檢查 git 狀態失敗: ${error}`,
       };
     }
-  }
+  },
+  { isConcurrencySafe: true }
 );
 
 export const gitDiffTool = defineTool(
@@ -135,7 +136,8 @@ export const gitDiffTool = defineTool(
         error: `Failed to show git diff / 顯示 git 差異失敗: ${error}`,
       };
     }
-  }
+  },
+  { isConcurrencySafe: true }
 );
 
 export const gitLogTool = defineTool(
@@ -180,6 +182,187 @@ export const gitLogTool = defineTool(
         success: false,
         content: '',
         error: `Failed to show git log / 顯示 git 日誌失敗: ${error}`,
+      };
+    }
+  },
+  { isConcurrencySafe: true }
+);
+
+export const gitBranchTool = defineTool(
+  'git_branch',
+  'Manage git branches / 管理 git 分支',
+  {
+    type: 'object',
+    properties: {
+      path: {
+        type: 'string',
+        description: 'Path to git repository / git 倉庫路徑',
+      },
+      action: {
+        type: 'string',
+        enum: ['list', 'create', 'delete', 'switch'],
+        description: 'Branch action to perform / 要執行的分支操作',
+      },
+      branchName: {
+        type: 'string',
+        description: 'Branch name (required for create/delete/switch) / 分支名稱（創建/刪除/切換時必需）',
+      },
+    },
+    required: ['path', 'action'],
+  },
+  async (params: { path: string; action: string; branchName?: string }, context: ToolContext): Promise<ToolResult> => {
+    if (context.dryRun) {
+      return {
+        success: true,
+        content: `[DRY RUN] Would ${params.action} branch / [模擬運行] 將${params.action}分支`,
+      };
+    }
+
+    try {
+      let args: string[];
+      switch (params.action) {
+        case 'list':
+          args = ['branch', '-a'];
+          break;
+        case 'create':
+          if (!params.branchName) {
+            return {
+              success: false,
+              content: '',
+              error: 'Branch name required for create / 創建分支需要提供名稱',
+            };
+          }
+          args = ['branch', params.branchName];
+          break;
+        case 'delete':
+          if (!params.branchName) {
+            return {
+              success: false,
+              content: '',
+              error: 'Branch name required for delete / 刪除分支需要提供名稱',
+            };
+          }
+          args = ['branch', '-d', params.branchName];
+          break;
+        case 'switch':
+          if (!params.branchName) {
+            return {
+              success: false,
+              content: '',
+              error: 'Branch name required for switch / 切換分支需要提供名稱',
+            };
+          }
+          args = ['switch', params.branchName];
+          break;
+        default:
+          return {
+            success: false,
+            content: '',
+            error: `Unknown action / 未知操作: ${params.action}`,
+          };
+      }
+
+      const result = await runGitCommand(args, params.path);
+
+      return {
+        success: result.exitCode === 0,
+        content: result.stdout || result.stderr || 'Success / 成功',
+        error: result.exitCode !== 0 ? `Git exit code / Git 退出碼: ${result.exitCode}` : undefined,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: '',
+        error: `Failed to manage branch / 管理分支失敗: ${error}`,
+      };
+    }
+  }
+);
+
+export const gitStashTool = defineTool(
+  'git_stash',
+  'Manage git stash / 管理 git 儲藏',
+  {
+    type: 'object',
+    properties: {
+      path: {
+        type: 'string',
+        description: 'Path to git repository / git 倉庫路徑',
+      },
+      action: {
+        type: 'string',
+        enum: ['list', 'push', 'pop', 'drop', 'apply'],
+        description: 'Stash action to perform / 要執行的儲藏操作',
+      },
+      message: {
+        type: 'string',
+        description: 'Stash message (for push) / 儲藏消息（用於 push）',
+      },
+      stashIndex: {
+        type: 'number',
+        description: 'Stash index (for pop/drop/apply) / 儲藏索引（用於 pop/drop/apply）',
+      },
+    },
+    required: ['path', 'action'],
+  },
+  async (params: { path: string; action: string; message?: string; stashIndex?: number }, context: ToolContext): Promise<ToolResult> => {
+    if (context.dryRun) {
+      return {
+        success: true,
+        content: `[DRY RUN] Would ${params.action} stash / [模擬運行] 將${params.action}儲藏`,
+      };
+    }
+
+    try {
+      let args: string[];
+      switch (params.action) {
+        case 'list':
+          args = ['stash', 'list'];
+          break;
+        case 'push':
+          args = ['stash', 'push'];
+          if (params.message) {
+            args.push('-m', params.message);
+          }
+          break;
+        case 'pop':
+          args = ['stash', 'pop'];
+          if (params.stashIndex !== undefined) {
+            args.push(`stash@{${params.stashIndex}}`);
+          }
+          break;
+        case 'drop':
+          args = ['stash', 'drop'];
+          if (params.stashIndex !== undefined) {
+            args.push(`stash@{${params.stashIndex}}`);
+          }
+          break;
+        case 'apply':
+          args = ['stash', 'apply'];
+          if (params.stashIndex !== undefined) {
+            args.push(`stash@{${params.stashIndex}}`);
+          }
+          break;
+        default:
+          return {
+            success: false,
+            content: '',
+            error: `Unknown action / 未知操作: ${params.action}`,
+          };
+      }
+
+      const result = await runGitCommand(args, params.path);
+
+      return {
+        success: result.exitCode === 0,
+        content: result.stdout || result.stderr || 'Success / 成功',
+        error: result.exitCode !== 0 ? `Git exit code / Git 退出碼: ${result.exitCode}` : undefined,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: '',
+        error: `Failed to manage stash / 管理儲藏失敗: ${error}`,
       };
     }
   }

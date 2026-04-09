@@ -81,6 +81,7 @@ export interface ToolContext {
   dryRun: boolean;
   workingDir: string;
   allowedShellCommands?: string[];
+  yoloMode?: boolean;
 }
 
 export interface Logger {
@@ -91,7 +92,7 @@ export interface Logger {
 }
 
 export interface ClawConfig {
-  provider: 'anthropic' | 'openai' | 'local';
+  provider: 'anthropic' | 'openai' | 'deepseek' | 'minimax' | 'kimi' | 'other' | 'local';
   model: string;
   apiKey?: string;
   baseUrl?: string;
@@ -107,4 +108,7 @@ export interface ClawConfig {
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   streamResponse: boolean;
   saveSession: boolean;
+  headers?: Record<string, string>;  // Custom HTTP headers / 自定義 HTTP 頭
+  debug?: boolean;  // Show debug output / 顯示調試輸出
+  yolo?: boolean;  // YOLO mode - auto-confirm destructive actions / YOLO 模式 - 自動確認危險操作
 }

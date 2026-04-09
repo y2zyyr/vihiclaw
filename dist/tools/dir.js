@@ -52,5 +52,5 @@ export const listDirTool = defineTool('list_dir', 'List the contents of a direct
         }
         throw new ToolError(`Failed to list directory: ${error}`);
     }
-});
+}, { isConcurrencySafe: true });
 //# sourceMappingURL=dir.js.map

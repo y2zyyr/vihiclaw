@@ -62,6 +62,7 @@ export interface ToolContext {
     dryRun: boolean;
     workingDir: string;
     allowedShellCommands?: string[];
+    yoloMode?: boolean;
 }
 export interface Logger {
     debug(message: string, meta?: Record<string, unknown>): void;
@@ -70,7 +71,7 @@ export interface Logger {
     error(message: string, meta?: Record<string, unknown>): void;
 }
 export interface ClawConfig {
-    provider: 'anthropic' | 'openai' | 'local';
+    provider: 'anthropic' | 'openai' | 'deepseek' | 'minimax' | 'kimi' | 'other' | 'local';
     model: string;
     apiKey?: string;
     baseUrl?: string;
@@ -86,5 +87,8 @@ export interface ClawConfig {
     logLevel: 'debug' | 'info' | 'warn' | 'error';
     streamResponse: boolean;
     saveSession: boolean;
+    headers?: Record<string, string>;
+    debug?: boolean;
+    yolo?: boolean;
 }
 //# sourceMappingURL=index.d.ts.map

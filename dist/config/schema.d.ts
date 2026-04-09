@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ClawConfig } from '../types/index.js';
 export declare const configSchema: z.ZodObject<{
-    provider: z.ZodDefault<z.ZodEnum<["anthropic", "openai", "local"]>>;
+    provider: z.ZodDefault<z.ZodEnum<["anthropic", "openai", "deepseek", "minimax", "kimi", "other", "local"]>>;
     model: z.ZodDefault<z.ZodString>;
     apiKey: z.ZodOptional<z.ZodString>;
     baseUrl: z.ZodOptional<z.ZodString>;
@@ -17,8 +17,12 @@ export declare const configSchema: z.ZodObject<{
     logLevel: z.ZodDefault<z.ZodEnum<["debug", "info", "warn", "error"]>>;
     streamResponse: z.ZodDefault<z.ZodBoolean>;
     saveSession: z.ZodDefault<z.ZodBoolean>;
+    headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+    debug: z.ZodDefault<z.ZodBoolean>;
+    yolo: z.ZodDefault<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
-    provider: "anthropic" | "openai" | "local";
+    debug: boolean;
+    provider: "anthropic" | "openai" | "deepseek" | "minimax" | "kimi" | "other" | "local";
     model: string;
     maxIterations: number;
     temperature: number;
@@ -31,11 +35,14 @@ export declare const configSchema: z.ZodObject<{
     logLevel: "error" | "debug" | "info" | "warn";
     streamResponse: boolean;
     saveSession: boolean;
+    yolo: boolean;
     apiKey?: string | undefined;
     baseUrl?: string | undefined;
     maxTokens?: number | undefined;
+    headers?: Record<string, string> | undefined;
 }, {
-    provider?: "anthropic" | "openai" | "local" | undefined;
+    debug?: boolean | undefined;
+    provider?: "anthropic" | "openai" | "deepseek" | "minimax" | "kimi" | "other" | "local" | undefined;
     model?: string | undefined;
     apiKey?: string | undefined;
     baseUrl?: string | undefined;
@@ -51,6 +58,8 @@ export declare const configSchema: z.ZodObject<{
     logLevel?: "error" | "debug" | "info" | "warn" | undefined;
     streamResponse?: boolean | undefined;
     saveSession?: boolean | undefined;
+    headers?: Record<string, string> | undefined;
+    yolo?: boolean | undefined;
 }>;
 export type ConfigSchema = z.infer<typeof configSchema>;
 export declare const DEFAULT_CONFIG: Partial<ClawConfig>;

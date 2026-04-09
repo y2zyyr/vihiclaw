@@ -58,5 +58,6 @@ export const readFileTool = defineTool(
       }
       throw new ToolError(`Failed to read file: ${error}`);
     }
-  }
+  },
+  { isConcurrencySafe: true }
 );

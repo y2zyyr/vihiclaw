@@ -7,12 +7,24 @@ export interface AgentOptions {
   dryRun?: boolean;
 }
 
+export interface ToolExecutionTrace {
+  toolCallId: string;
+  toolName: string;
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  status: 'pending' | 'running' | 'success' | 'error';
+  error?: string;
+}
+
 export interface AgentCallbacks {
   onStateChange?: (state: AgentState) => void;
-  onToolCall?: (toolCall: ToolCall) => void;
-  onToolResult?: (result: ToolResult) => void;
+  onToolCall?: (toolCall: ToolCall, trace: ToolExecutionTrace) => void;
+  onToolResult?: (result: ToolResult, trace: ToolExecutionTrace) => void;
   onMessage?: (role: 'user' | 'assistant', content: string) => void;
   onError?: (error: Error) => void;
+  onToolExecutionStart?: (trace: ToolExecutionTrace) => void;
+  onToolExecutionEnd?: (trace: ToolExecutionTrace) => void;
 }
 
 export interface ToolExecutionResult {

@@ -6,6 +6,7 @@ import { profileCheckpoint, printProfileReport } from '../utils/profiler.js';
 import { loadConfig } from '../config/loader.js';
 import { runREPL } from './repl.js';
 import { runSingleCommand } from './single.js';
+import { runSetupWizard } from './setup.js';
 import { ClawConfig } from '../types/index.js';
 
 const VERSION = '0.1.0';
@@ -30,6 +31,22 @@ async function main(): Promise<void> {
     .option('--log-dir <dir>', 'Log directory / 日誌目錄')
     .option('--log-level <level>', 'Log level (debug, info, warn, error) / 日誌級別')
     .option('--no-stream', 'Disable streaming responses / 禁用流式響應');
+
+  program
+    .command('setup')
+    .alias('onboard')
+    .description('Run setup wizard / 運行設置嚮導')
+    .action(async () => {
+      console.log(chalk.cyan('\n🐾 VIHIclaw Setup Wizard / 設置嚮導'));
+      console.log(chalk.gray('Reconfiguring VIHIclaw... / 重新配置 VIHIclaw...\n'));
+      const success = await runSetupWizard();
+      if (success) {
+        console.log(chalk.green('\n✅ 設置完成！請重新運行 vihi / Setup complete! Please restart vihi'));
+      } else {
+        console.log(chalk.red('\n❌ 設置已取消 / Setup cancelled'));
+        process.exit(1);
+      }
+    });
 
   program
     .command('chat')

@@ -4,8 +4,9 @@ import { ToolRegistry } from '../tools/registry.js';
 import { SessionManager } from '../session/manager.js';
 import { ContextBuilder } from '../context/builder.js';
 import { Logger } from '../types/index.js';
-import { AgentCallbacks, ToolExecutionResult } from './types.js';
+import { AgentCallbacks, ToolExecutionResult, ToolExecutionTrace } from './types.js';
 import { ClawError } from '../utils/errors.js';
+import { MemoryManager } from '../memory/manager.js';
 
 /**
  * AgentLoop implements a state machine-driven agent loop
@@ -23,6 +24,7 @@ export class AgentLoop {
   private context: ContextBuilder;
   private pendingToolCalls: ToolCall[] = [];
   private currentIteration = 0;
+  private toolTraces: Map<string, ToolExecutionTrace> = new Map();
 
   constructor(
     private provider: LLMProvider,
@@ -31,7 +33,8 @@ export class AgentLoop {
     private sessionId: string,
     private logger: Logger,
     private config: ClawConfig,
-    private callbacks?: AgentCallbacks
+    private callbacks?: AgentCallbacks,
+    private memoryManager?: MemoryManager
   ) {
     this.context = new ContextBuilder();
   }
@@ -46,6 +49,22 @@ export class AgentLoop {
     return this.state;
   }
 
+  getToolTraces(): ToolExecutionTrace[] {
+    return Array.from(this.toolTraces.values()).sort((a, b) => a.startTime - b.startTime);
+  }
+
+  clearToolTraces(): void {
+    this.toolTraces.clear();
+  }
+
+  /**
+   * Set YOLO mode (auto-confirm destructive actions)
+   */
+  setYolo(enabled: boolean): void {
+    this.config.yolo = enabled;
+    this.logger.debug(`YOLO mode ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
   /**
    * Main entry point: run the agent with user input
    */
@@ -53,6 +72,7 @@ export class AgentLoop {
     // Reset state
     this.setState('idle');
     this.currentIteration = 0;
+    this.clearToolTraces();
 
     // Add user message to context
     this.context.addUserMessage(userInput);
@@ -62,6 +82,15 @@ export class AgentLoop {
     });
 
     this.callbacks?.onMessage?.('user', userInput);
+
+    // Capture user message to memory / 捕獲用戶消息到記憶
+    if (this.memoryManager) {
+      try {
+        await this.memoryManager.captureConversation(this.sessionId, 'user', userInput);
+      } catch (error) {
+        this.logger.debug('Failed to capture user message to memory', { error: String(error) });
+      }
+    }
 
     // Start the loop
     await this.loop();
@@ -116,6 +145,7 @@ export class AgentLoop {
   }
 
   private async handleThinking(): Promise<void> {
+    const startTime = Date.now();
     try {
       this.logger.debug('Requesting completion from provider');
 
@@ -126,9 +156,11 @@ export class AgentLoop {
         maxTokens: this.config.maxTokens,
       });
 
+      const duration = Date.now() - startTime;
       this.logger.debug('Received completion', {
         contentLength: result.content.length,
         toolCallsCount: result.toolCalls?.length,
+        duration: `${duration}ms`,
       });
 
       // Add assistant message to context
@@ -140,6 +172,20 @@ export class AgentLoop {
       });
 
       this.callbacks?.onMessage?.('assistant', result.content);
+
+      // Capture assistant message to memory / 捕獲助手消息到記憶
+      if (this.memoryManager) {
+        try {
+          await this.memoryManager.captureConversation(
+            this.sessionId,
+            'assistant',
+            result.content,
+            result.toolCalls
+          );
+        } catch (error) {
+          this.logger.debug('Failed to capture assistant message to memory', { error: String(error) });
+        }
+      }
 
       // Check if there are tool calls to execute
       if (result.toolCalls && result.toolCalls.length > 0) {
@@ -158,24 +204,54 @@ export class AgentLoop {
 
   private async handleExecuting(): Promise<void> {
     try {
-      const results: ToolExecutionResult[] = [];
+      // Categorize tool calls by concurrency safety / 按並發安全性分類工具調用
+      const safeCalls: ToolCall[] = [];
+      const unsafeCalls: ToolCall[] = [];
 
-      // Execute each pending tool call
       for (const toolCall of this.pendingToolCalls) {
-        this.callbacks?.onToolCall?.(toolCall);
+        const tool = this.toolRegistry.get(toolCall.name);
+        if (tool?.isConcurrencySafe) {
+          safeCalls.push(toolCall);
+        } else {
+          unsafeCalls.push(toolCall);
+        }
+      }
 
-        const result = await this.executeTool(toolCall);
-        results.push({ toolCallId: toolCall.id, result });
+      this.logger.debug('Tool execution plan', {
+        safe: safeCalls.map(c => c.name),
+        unsafe: unsafeCalls.map(c => c.name),
+      });
 
-        this.callbacks?.onToolResult?.(result);
+      // Execute safe tools concurrently / 並發執行安全工具
+      const safePromises = safeCalls.map(tc => this.executeToolWithTracing(tc));
 
-        // Add tool result to context
-        this.context.addToolResult(toolCall.id, result.content);
-        await this.sessionManager.addMessage(this.sessionId, {
-          role: 'tool',
-          content: result.content,
-          toolCallId: toolCall.id,
-        });
+      // Execute unsafe tools serially / 串行執行非安全工具
+      const unsafeResults: ToolExecutionResult[] = [];
+      for (const toolCall of unsafeCalls) {
+        unsafeResults.push(await this.executeToolWithTracing(toolCall));
+      }
+
+      // Wait for concurrent results / 等待並發結果
+      const safeResults = await Promise.all(safePromises);
+
+      // Combine results in original order / 按原始順序合併結果
+      const results: ToolExecutionResult[] = [];
+      const safeMap = new Map(safeResults.map(r => [r.toolCallId, r]));
+      const unsafeMap = new Map(unsafeResults.map(r => [r.toolCallId, r]));
+
+      for (const toolCall of this.pendingToolCalls) {
+        const result = safeMap.get(toolCall.id) || unsafeMap.get(toolCall.id);
+        if (result) {
+          results.push(result);
+
+          // Add to context in order / 按順序添加到上下文
+          this.context.addToolResult(toolCall.id, result.result.content);
+          await this.sessionManager.addMessage(this.sessionId, {
+            role: 'tool',
+            content: result.result.content,
+            toolCallId: toolCall.id,
+          });
+        }
       }
 
       // Clear pending calls
@@ -190,10 +266,56 @@ export class AgentLoop {
     }
   }
 
-  private async executeTool(toolCall: ToolCall): Promise<ToolExecutionResult['result']> {
+  private async executeToolWithTracing(toolCall: ToolCall): Promise<ToolExecutionResult> {
+    // Create trace for this tool execution
+    const trace: ToolExecutionTrace = {
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      startTime: Date.now(),
+      status: 'pending',
+    };
+    this.toolTraces.set(toolCall.id, trace);
+
+    this.callbacks?.onToolCall?.(toolCall, trace);
+    this.callbacks?.onToolExecutionStart?.(trace);
+
+    const result = await this.executeTool(toolCall, trace);
+
+    // Update trace with completion
+    trace.endTime = Date.now();
+    trace.duration = trace.endTime - trace.startTime;
+    trace.status = result.success ? 'success' : 'error';
+    if (!result.success) {
+      trace.error = result.error;
+    }
+
+    this.callbacks?.onToolResult?.(result, trace);
+    this.callbacks?.onToolExecutionEnd?.(trace);
+
+    // Capture to memory system if available / 如果有記憶系統則捕獲
+    if (this.memoryManager) {
+      try {
+        await this.memoryManager.captureToolExecution(
+          this.sessionId,
+          toolCall.name,
+          toolCall.arguments,
+          result.content,
+          trace
+        );
+      } catch (error) {
+        this.logger.debug('Failed to capture tool execution to memory', { error: String(error) });
+      }
+    }
+
+    return { toolCallId: toolCall.id, result };
+  }
+
+  private async executeTool(toolCall: ToolCall, trace: ToolExecutionTrace): Promise<ToolExecutionResult['result']> {
     const tool = this.toolRegistry.get(toolCall.name);
 
     if (!tool) {
+      trace.status = 'error';
+      trace.error = `Tool not found: ${toolCall.name}`;
       return {
         success: false,
         content: '',
@@ -202,6 +324,7 @@ export class AgentLoop {
     }
 
     try {
+      trace.status = 'running';
       this.logger.debug(`Executing tool: ${toolCall.name}`, { arguments: toolCall.arguments });
 
       const toolContext: ToolContext = {
@@ -209,6 +332,8 @@ export class AgentLoop {
         logger: this.logger,
         dryRun: this.config.dryRun,
         workingDir: process.cwd(),
+        allowedShellCommands: this.config.allowedShellCommands,
+        yoloMode: this.config.yolo,
       };
 
       const toolResult = await tool.execute(toolCall.arguments, toolContext);
@@ -219,6 +344,9 @@ export class AgentLoop {
     } catch (error) {
       const errorMessage = error instanceof ClawError ? error.message : String(error);
       this.logger.error(`Tool ${toolCall.name} failed`, { error: errorMessage });
+
+      trace.status = 'error';
+      trace.error = errorMessage;
 
       return {
         success: false,

@@ -49,5 +49,5 @@ export const readFileTool = defineTool('read_file', 'Read the contents of a file
         }
         throw new ToolError(`Failed to read file: ${error}`);
     }
-});
+}, { isConcurrencySafe: true });
 //# sourceMappingURL=read.js.map

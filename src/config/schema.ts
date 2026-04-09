@@ -3,7 +3,7 @@ import { ClawConfig } from '../types/index.js';
 
 // Zod schema for config validation
 export const configSchema = z.object({
-  provider: z.enum(['anthropic', 'openai', 'local']).default('anthropic'),
+  provider: z.enum(['anthropic', 'openai', 'deepseek', 'minimax', 'kimi', 'other', 'local']).default('anthropic'),
   model: z.string().default('claude-sonnet-4-6'),
   apiKey: z.string().optional(),
   baseUrl: z.string().optional(),
@@ -21,6 +21,9 @@ export const configSchema = z.object({
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   streamResponse: z.boolean().default(true),
   saveSession: z.boolean().default(true),
+  headers: z.record(z.string()).optional(),
+  debug: z.boolean().default(false),
+  yolo: z.boolean().default(false),
 });
 
 export type ConfigSchema = z.infer<typeof configSchema>;
@@ -40,4 +43,6 @@ export const DEFAULT_CONFIG: Partial<ClawConfig> = {
   logLevel: 'info',
   streamResponse: true,
   saveSession: true,
+  debug: false,
+  yolo: false,
 };

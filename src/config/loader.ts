@@ -16,7 +16,7 @@ function loadEnvConfig(): Partial<ClawConfig> {
   const env: Partial<ClawConfig> = {};
 
   if (process.env.CLAW_PROVIDER) {
-    env.provider = process.env.CLAW_PROVIDER as 'anthropic' | 'openai' | 'local';
+    env.provider = process.env.CLAW_PROVIDER as 'anthropic' | 'openai' | 'deepseek' | 'minimax' | 'kimi' | 'other' | 'local';
   }
   if (process.env.CLAW_MODEL) {
     env.model = process.env.CLAW_MODEL;
@@ -59,14 +59,25 @@ function loadEnvConfig(): Partial<ClawConfig> {
 }
 
 async function loadFileConfig(): Promise<Partial<ClawConfig>> {
-  const configPath = path.join(os.homedir(), '.claw', 'config.json');
+  // Try .vihiclaw first, then fall back to .claw / 先嘗試 .vihiclaw，然後回退到 .claw
+  const configPath = path.join(os.homedir(), '.vihiclaw', 'config.json');
+  const legacyPath = path.join(os.homedir(), '.claw', 'config.json');
 
   try {
     const content = await fs.readFile(configPath, 'utf-8');
     return JSON.parse(content);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return {};
+      // Try legacy path / 嘗試舊路徑
+      try {
+        const content = await fs.readFile(legacyPath, 'utf-8');
+        return JSON.parse(content);
+      } catch (legacyError) {
+        if ((legacyError as NodeJS.ErrnoException).code === 'ENOENT') {
+          return {};
+        }
+        throw new ConfigError(`Failed to load config from ${legacyPath}: ${legacyError}`);
+      }
     }
     throw new ConfigError(`Failed to load config from ${configPath}: ${error}`);
   }
@@ -87,7 +98,7 @@ function formatValidationError(error: any): string {
 
     // Add helpful suggestions for common errors / 為常見錯誤添加建議
     if (path === 'provider') {
-      suggestion = 'Valid providers / 有效提供者: anthropic, openai, local';
+      suggestion = 'Valid providers / 有效提供者: anthropic, openai, deepseek, minimax, kimi, other, local';
     } else if (path === 'apiKey') {
       suggestion = 'Set via CLAW_API_KEY environment variable or config file / 通過 CLAW_API_KEY 環境變量或配置文件設置';
     } else if (path === 'maxIterations') {
@@ -124,8 +135,8 @@ export async function loadConfig(overrides?: Partial<ClawConfig>): Promise<ClawC
     const errorMessage = formatValidationError(result.error);
     throw new ConfigError(
       `Configuration validation failed / 配置驗證失敗:\n${errorMessage}\n\n` +
-      `Check your ~/.claw/config.json or environment variables / 檢查 ~/.claw/config.json 或環境變量\n` +
-      `Run 'vihiclaw --help' for configuration options / 運行 'vihiclaw --help' 查看配置選項`
+      `Check your ~/.vihiclaw/config.json or environment variables / 檢查 ~/.vihiclaw/config.json 或環境變量\n` +
+      `Run 'vihi --help' for configuration options / 運行 'vihi --help' 查看配置選項`
     );
   }
 
@@ -138,7 +149,7 @@ export async function loadConfig(overrides?: Partial<ClawConfig>): Promise<ClawC
 }
 
 export async function saveConfig(config: Partial<ClawConfig>): Promise<void> {
-  const configDir = path.join(os.homedir(), '.claw');
+  const configDir = path.join(os.homedir(), '.vihiclaw');
   const configPath = path.join(configDir, 'config.json');
 
   try {

@@ -3,7 +3,8 @@ import { LLMProvider } from '../providers/base.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { SessionManager } from '../session/manager.js';
 import { Logger } from '../types/index.js';
-import { AgentCallbacks } from './types.js';
+import { AgentCallbacks, ToolExecutionTrace } from './types.js';
+import { MemoryManager } from '../memory/manager.js';
 /**
  * AgentLoop implements a state machine-driven agent loop
  *
@@ -23,13 +24,21 @@ export declare class AgentLoop {
     private logger;
     private config;
     private callbacks?;
+    private memoryManager?;
     private state;
     private context;
     private pendingToolCalls;
     private currentIteration;
-    constructor(provider: LLMProvider, toolRegistry: ToolRegistry, sessionManager: SessionManager, sessionId: string, logger: Logger, config: ClawConfig, callbacks?: AgentCallbacks | undefined);
+    private toolTraces;
+    constructor(provider: LLMProvider, toolRegistry: ToolRegistry, sessionManager: SessionManager, sessionId: string, logger: Logger, config: ClawConfig, callbacks?: AgentCallbacks | undefined, memoryManager?: MemoryManager | undefined);
     private setState;
     getState(): AgentState;
+    getToolTraces(): ToolExecutionTrace[];
+    clearToolTraces(): void;
+    /**
+     * Set YOLO mode (auto-confirm destructive actions)
+     */
+    setYolo(enabled: boolean): void;
     /**
      * Main entry point: run the agent with user input
      */
@@ -45,6 +54,7 @@ export declare class AgentLoop {
     private handleIdle;
     private handleThinking;
     private handleExecuting;
+    private executeToolWithTracing;
     private executeTool;
     /**
      * Stop the agent loop

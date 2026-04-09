@@ -1,7 +1,7 @@
 import { z } from 'zod';
 // Zod schema for config validation
 export const configSchema = z.object({
-    provider: z.enum(['anthropic', 'openai', 'local']).default('anthropic'),
+    provider: z.enum(['anthropic', 'openai', 'deepseek', 'minimax', 'kimi', 'other', 'local']).default('anthropic'),
     model: z.string().default('claude-sonnet-4-6'),
     apiKey: z.string().optional(),
     baseUrl: z.string().optional(),
@@ -19,6 +19,9 @@ export const configSchema = z.object({
     logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     streamResponse: z.boolean().default(true),
     saveSession: z.boolean().default(true),
+    headers: z.record(z.string()).optional(),
+    debug: z.boolean().default(false),
+    yolo: z.boolean().default(false),
 });
 // Default configuration
 export const DEFAULT_CONFIG = {
@@ -35,5 +38,7 @@ export const DEFAULT_CONFIG = {
     logLevel: 'info',
     streamResponse: true,
     saveSession: true,
+    debug: false,
+    yolo: false,
 };
 //# sourceMappingURL=schema.js.map

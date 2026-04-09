@@ -63,5 +63,6 @@ export const listDirTool = defineTool(
       }
       throw new ToolError(`Failed to list directory: ${error}`);
     }
-  }
+  },
+  { isConcurrencySafe: true }
 );

@@ -1,17 +1,35 @@
 import readline from 'readline';
 import chalk from 'chalk';
+import { join } from 'path';
 import { loadConfig } from '../config/loader.js';
+import { isFirstRun, runSetupWizard } from './setup.js';
 import { createLogger } from '../utils/logger.js';
 import { createDefaultRegistry } from '../tools/index.js';
 import { AnthropicProvider } from '../providers/anthropic.js';
 import { OpenAIProvider } from '../providers/openai.js';
+import { OpenAICompatibleProvider } from '../providers/openai_compatible.js';
 import { LocalProvider } from '../providers/local.js';
 import { SessionManager } from '../session/manager.js';
+import { exportSession, suggestExportFilename } from '../session/exporter.js';
 import { AgentLoop } from '../agent/loop.js';
 import { ClawError } from '../utils/errors.js';
 export async function runREPL(overrides) {
+    // Check first run / 檢查首次運行
+    if (!overrides?.apiKey && isFirstRun()) {
+        const setupSuccess = await runSetupWizard();
+        if (!setupSuccess) {
+            console.log(chalk.yellow('\n您可以手動創建配置文件 / You can manually create config:'));
+            console.log(chalk.gray('  ~/.vihiclaw/config.json'));
+            process.exit(1);
+        }
+        console.log(chalk.cyan('\n🚀 啟動 VIHIclaw...\n'));
+    }
     const config = await loadConfig(overrides);
     const logger = createLogger(config.logLevel, config.logDir);
+    // Debug mode state (can be toggled with Ctrl+O) / 調試模式狀態（可用 Ctrl+O 切換）
+    let debugMode = config.debug || false;
+    // YOLO mode state (auto-confirm destructive actions, toggle with Ctrl+Y) / YOLO 模式狀態（自動確認危險操作，用 Ctrl+Y 切換）
+    let yoloMode = config.yolo || false;
     logger.info('Starting VIHIclaw REPL');
     // Initialize components
     const toolRegistry = createDefaultRegistry();
@@ -39,7 +57,7 @@ export async function runREPL(overrides) {
         session = await sessionManager.create();
         logger.info(`Created session: ${session.id}`);
     }
-    const provider = createProvider(config);
+    const provider = createProvider(config, debugMode);
     const agent = new AgentLoop(provider, toolRegistry, sessionManager, session.id, logger, config, {
         onStateChange: (state) => {
             if (state === 'thinking') {
@@ -57,12 +75,16 @@ export async function runREPL(overrides) {
                 console.log(chalk.cyan('\nAssistant:'), content);
             }
         },
-        onToolCall: (toolCall) => {
-            console.log(chalk.gray(`  [Tool] ${toolCall.name}`));
+        onToolExecutionStart: (trace) => {
+            process.stdout.write(chalk.gray(`\n  [${trace.toolName}] `));
         },
-        onToolResult: (result) => {
-            if (!result.success) {
-                console.log(chalk.red(`  [Error] ${result.error}`));
+        onToolExecutionEnd: (trace) => {
+            if (trace.duration !== undefined) {
+                const duration = trace.duration < 1000
+                    ? `${trace.duration}ms`
+                    : `${(trace.duration / 1000).toFixed(1)}s`;
+                const color = trace.status === 'success' ? chalk.green : chalk.red;
+                process.stdout.write(color(`✓ ${duration}`));
             }
         },
         onError: (error) => {
@@ -70,15 +92,41 @@ export async function runREPL(overrides) {
         },
     });
     // Print welcome message
-    console.log(chalk.bold.cyan('\n🐾 VIHIclaw - AI Coding Agent/AI 編程代理'));
+    console.log(chalk.bold.cyan('\n🐾 VIHIclaw - AI Coding Agent'));
     console.log(chalk.gray(`Session: ${session.id}`));
     console.log(chalk.gray(`Provider: ${config.provider} (${config.model})`));
-    console.log(chalk.gray('Type "exit" or press Ctrl+C to quit / 輸入 "exit" 或按 Ctrl+C 退出'));
-    // Create readline interface
+    console.log(chalk.gray('Type "exit" or press Ctrl+C to quit'));
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
         prompt: chalk.bold('> '),
+    });
+    // Enable keypress events for shortcuts / 啟用快捷鍵的 keypress 事件
+    readline.emitKeypressEvents(process.stdin);
+    if (process.stdin.isTTY) {
+        process.stdin.setRawMode(true);
+    }
+    // Handle Ctrl+O to toggle debug / 處理 Ctrl+O 切換調試
+    process.stdin.on('keypress', (_str, key) => {
+        if (key && key.ctrl && key.name === 'o') {
+            debugMode = !debugMode;
+            // Update provider debug state if supported / 如果支持則更新 provider 調試狀態
+            if ('setDebug' in provider && typeof provider.setDebug === 'function') {
+                provider.setDebug(debugMode);
+            }
+            console.log(chalk.gray(`\n[Debug: ${debugMode ? 'ON' : 'OFF'}]`));
+            rl.prompt();
+        }
+        // Handle Ctrl+Y to toggle YOLO mode / 處理 Ctrl+Y 切換 YOLO 模式
+        if (key && key.ctrl && key.name === 'y') {
+            yoloMode = !yoloMode;
+            // Update agent YOLO state if supported / 如果支持則更新 agent YOLO 狀態
+            if ('setYolo' in agent && typeof agent.setYolo === 'function') {
+                agent.setYolo(yoloMode);
+            }
+            console.log(chalk.yellow(`\n[YOLO: ${yoloMode ? 'ON' : 'OFF'}] ${yoloMode ? '⚠️ Auto-confirming destructive actions' : 'Confirming destructive actions'}`));
+            rl.prompt();
+        }
     });
     rl.prompt();
     rl.on('line', async (input) => {
@@ -88,19 +136,23 @@ export async function runREPL(overrides) {
             return;
         }
         if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit') {
-            console.log(chalk.gray('\nGoodbye! 👋'));
+            console.log(chalk.gray('\nGoodbye!'));
             rl.close();
             return;
         }
-        // Special commands
         if (trimmed.startsWith('/')) {
-            await handleCommand(trimmed, agent, config, sessionManager, session.id);
+            await handleCommand(trimmed, agent, config, sessionManager, session.id, debugMode, yoloMode);
             rl.prompt();
             return;
         }
-        // Process user input
         try {
             await agent.run(trimmed);
+            // Show tool execution summary
+            const traces = agent.getToolTraces();
+            if (traces.length > 0) {
+                const totalDuration = traces.reduce((sum, t) => sum + (t.duration || 0), 0);
+                console.log(chalk.gray(`\n  (${traces.length} tools, ${totalDuration}ms total)`));
+            }
         }
         catch (error) {
             if (error instanceof ClawError) {
@@ -110,7 +162,7 @@ export async function runREPL(overrides) {
                 console.error(chalk.red('Unexpected error:'), error);
             }
         }
-        console.log(); // Empty line
+        console.log();
         rl.prompt();
     });
     rl.on('close', () => {
@@ -118,13 +170,46 @@ export async function runREPL(overrides) {
         process.exit(0);
     });
 }
-function createProvider(config) {
+function createProvider(config, debug = false) {
     switch (config.provider) {
         case 'anthropic':
             return new AnthropicProvider(config.apiKey || '');
         case 'openai':
-            return new OpenAIProvider({
+            return new OpenAIProvider({ apiKey: config.apiKey || '' });
+        case 'deepseek':
+            return new OpenAICompatibleProvider({
                 apiKey: config.apiKey || '',
+                baseURL: config.baseUrl || 'https://api.deepseek.com/v1',
+                defaultModel: config.model || 'deepseek-chat',
+                headers: config.headers,
+                debug,
+            });
+        case 'minimax':
+            return new OpenAICompatibleProvider({
+                apiKey: config.apiKey || '',
+                baseURL: config.baseUrl || 'https://api.minimax.chat/v1',
+                defaultModel: config.model || 'abab6.5-chat',
+                headers: config.headers,
+                debug,
+            });
+        case 'kimi':
+            return new OpenAICompatibleProvider({
+                apiKey: config.apiKey || '',
+                baseURL: config.baseUrl || 'https://api.moonshot.cn/v1',
+                defaultModel: config.model || 'moonshot-v1-8k',
+                headers: config.headers,
+                debug,
+            });
+        case 'other':
+            if (!config.baseUrl) {
+                throw new ClawError('Custom provider requires baseUrl', 'MISSING_BASEURL', false);
+            }
+            return new OpenAICompatibleProvider({
+                apiKey: config.apiKey || '',
+                baseURL: config.baseUrl,
+                defaultModel: config.model || 'gpt-3.5-turbo',
+                headers: config.headers,
+                debug,
             });
         case 'local':
             return new LocalProvider({
@@ -136,67 +221,116 @@ function createProvider(config) {
             throw new ClawError(`Unknown provider: ${config.provider}`, 'UNKNOWN_PROVIDER', false);
     }
 }
-async function handleCommand(command, _agent, config, sessionManager, currentSessionId) {
+async function handleCommand(command, _agent, config, sessionManager, currentSessionId, showDebug = false, yoloMode = false) {
     const parts = command.slice(1).split(' ');
     const cmd = parts[0];
     switch (cmd) {
         case 'help':
-            console.log(chalk.cyan('\nAvailable commands / 可用命令:'));
-            console.log('  /help       - Show this help / 顯示幫助');
-            console.log('  /resume     - Resume previous session / 恢復上一個會話');
-            console.log('  /sessions   - List available sessions / 列出可用會話');
-            console.log('  /clear      - Clear the conversation / 清除對話');
-            console.log('  /tools      - List available tools / 列出可用工具');
-            console.log('  /config     - Show current configuration / 顯示當前配置');
-            console.log('  /dryrun     - Toggle dry-run mode / 切換模擬運行模式');
-            console.log('  /exit       - Exit the REPL / 退出 REPL');
+            console.log(chalk.cyan('\nAvailable commands:'));
+            console.log('  /help              - Show this help');
+            console.log('  /resume            - Resume previous session');
+            console.log('  /sessions          - List available sessions');
+            console.log('  /clear             - Clear the conversation');
+            console.log('  /tools             - List available tools');
+            console.log('  /config            - Show current configuration');
+            console.log('  /debug             - Toggle debug mode (Ctrl+O) / 切換調試模式');
+            console.log('  /yolo              - Toggle YOLO mode (Ctrl+Y) / 切換 YOLO 模式');
+            console.log('  /dryrun            - Toggle dry-run mode');
+            console.log('  /export [format]   - Export session (json|markdown)');
+            console.log('  /memory [cmd]      - Memory operations (stats|search)');
+            console.log('  /exit              - Exit the REPL');
+            console.log();
+            break;
+        case 'debug':
+            console.log(chalk.cyan('\nDebug Mode / 調試模式:'));
+            console.log(`  Current / 當前: ${showDebug ? chalk.green('ON') : chalk.gray('OFF')}`);
+            console.log(chalk.gray('\n  Set in config to enable / 在配置中設置以啟用:'));
+            console.log(chalk.gray('  ~/.vihiclaw/config.json → "debug": true'));
+            console.log();
+            break;
+        case 'yolo':
+            console.log(chalk.cyan('\nYOLO Mode / YOLO 模式:'));
+            console.log(`  Current / 當前: ${yoloMode ? chalk.yellow('ON ⚠️') : chalk.gray('OFF')}`);
+            console.log(chalk.gray('\n  When enabled, destructive actions are auto-confirmed / 啟用後將自動確認危險操作'));
+            console.log(chalk.gray('  Set in config to enable by default / 在配置中設置默認啟用:'));
+            console.log(chalk.gray('  ~/.vihiclaw/config.json → "yolo": true'));
             console.log();
             break;
         case 'sessions':
             const sessions = await sessionManager.list();
-            console.log(chalk.cyan('\nAvailable sessions / 可用會話:'));
+            console.log(chalk.cyan('\nAvailable sessions:'));
             if (sessions.length === 0) {
-                console.log(chalk.gray('  No sessions found / 未找到會話'));
+                console.log(chalk.gray('  No sessions found'));
             }
             else {
                 for (const sid of sessions) {
-                    const marker = sid === currentSessionId ? ' (current / 當前)' : '';
+                    const marker = sid === currentSessionId ? ' (current)' : '';
                     console.log(`  ${sid}${marker}`);
                 }
             }
             console.log();
             break;
-        case 'resume':
-            console.log(chalk.yellow('\nTo resume a session, exit and restart with: / 要恢復會話，請退出並使用以下命令重啟：'));
-            console.log(chalk.cyan(`  vihiclaw --resume ${currentSessionId}\n`));
-            break;
         case 'tools':
             const { createDefaultRegistry } = await import('../tools/index.js');
             const registry = createDefaultRegistry();
-            console.log(chalk.cyan('\nAvailable tools / 可用工具:'));
+            console.log(chalk.cyan('\nAvailable tools:'));
             for (const tool of registry.getAll()) {
                 console.log(`  ${chalk.bold(tool.name)} - ${tool.description}`);
             }
             console.log();
             break;
         case 'config':
-            console.log(chalk.cyan('\nCurrent configuration / 當前配置:'));
-            console.log(`  Provider / 提供者: ${config.provider}`);
-            console.log(`  Model / 模型: ${config.model}`);
-            console.log(`  Dry run / 模擬運行: ${config.dryRun}`);
-            console.log(`  Max iterations / 最大迭代: ${config.maxIterations}`);
+            console.log(chalk.cyan('\nCurrent configuration:'));
+            console.log(`  Provider: ${config.provider}`);
+            console.log(`  Model: ${config.model}`);
+            console.log(`  Dry run: ${config.dryRun}`);
+            console.log(`  Max iterations: ${config.maxIterations}`);
+            console.log(`  Debug mode: ${showDebug ? chalk.green('ON') : chalk.gray('OFF')}`);
+            console.log(`  YOLO mode: ${yoloMode ? chalk.yellow('ON ⚠️') : chalk.gray('OFF')}`);
             console.log();
             break;
-        case 'dryrun':
-            config.dryRun = !config.dryRun;
-            console.log(chalk.cyan(`\nDry-run mode / 模擬運行模式: ${config.dryRun ? 'ON / 開' : 'OFF / 關'}\n`));
+        case 'export': {
+            const format = parts[1] || 'markdown';
+            if (format !== 'json' && format !== 'markdown') {
+                console.log(chalk.red(`\nInvalid format: ${format}`));
+                console.log(chalk.gray('Usage: /export [json|markdown]'));
+                console.log();
+                break;
+            }
+            const outputDir = process.env.HOME || process.env.USERPROFILE || '.';
+            const filename = suggestExportFilename(currentSessionId, format);
+            const outputPath = join(outputDir, 'Downloads', filename);
+            console.log(chalk.gray(`\nExporting to / 導出至: ${outputPath}`));
+            const result = await exportSession(sessionManager, currentSessionId, {
+                format,
+                outputPath,
+                includeMetadata: true,
+                includeTimestamps: true,
+            });
+            if (result.success) {
+                console.log(chalk.green(`\n✓ Exported / 導出成功: ${result.messageCount} messages`));
+                console.log(chalk.gray(`  Path / 路徑: ${result.outputPath}`));
+            }
+            else {
+                console.log(chalk.red(`\n✗ Export failed / 導出失敗: ${result.error}`));
+            }
+            console.log();
             break;
-        case 'clear':
-            console.log(chalk.yellow('\nNote: Context clearing not implemented yet / 注意：上下文清除暫未實現\n'));
+        }
+        case 'memory': {
+            // Memory manager would be initialized with the agent
+            // For now, show placeholder / 記憶管理器會與代理一起初始化
+            console.log(chalk.cyan('\nMemory System / 記憶系統:'));
+            console.log(chalk.gray('  (Integrated with agent loop / 已與代理循環集成)'));
+            console.log();
+            console.log('Commands / 命令:');
+            console.log('  stats  - Show memory statistics / 顯示記憶統計');
+            console.log('  search - Search memories / 搜索記憶');
+            console.log();
             break;
+        }
         default:
-            console.log(chalk.red(`\nUnknown command / 未知命令: /${cmd}`));
-            console.log(chalk.gray('Type /help for available commands / 輸入 /help 查看可用命令\n'));
+            console.log(chalk.red(`\nUnknown command: /${cmd}`));
     }
 }
 //# sourceMappingURL=repl.js.map

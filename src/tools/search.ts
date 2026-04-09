@@ -143,5 +143,6 @@ export const searchTextTool = defineTool(
     } catch (error) {
       throw new ToolError(`Failed to search: ${error}`);
     }
-  }
+  },
+  { isConcurrencySafe: true }
 );
